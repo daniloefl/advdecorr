@@ -324,8 +324,8 @@ class WGANGP(object):
     g = sns.scatterplot(x = x[:, 0], y = x[:, 1], hue = y,
                         hue_order = [0, 1], markers = ["^", "v"], legend = "brief", ax = ax)
     #ax.legend(handles = ax.lines[::len(x)+1], labels = ["Background", "Signal"])
-    g.axes.get_legend().texts.append("Background")
-    g.axes.get_legend().texts.append("Signal")
+    g.axes.get_legend().texts[1] = "Background"
+    g.axes.get_legend().texts[2] = "Signal"
     ax.set(xlabel = var1, ylabel = var2, title = 'Scatter plot')
     plt.savefig(filename)
     plt.close("all")
