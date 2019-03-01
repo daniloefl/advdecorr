@@ -477,10 +477,6 @@ class WGANGP(object):
         critic_metric_syst = 0
         c = 0.0
         for x,w,y in self.get_batch(origin = 'test', syst = False):
-          #x, w, y = self.get_batch(syst = False)
-          x = x.values
-          y = y.values
-          w = w.values
           disc_metric += self.discriminator.evaluate(x, y, sample_weight = w, verbose = 0)
           if epoch >= self.n_pretrain and not self.no_critic:
             critic_metric_nom += np.sum(self.critic.predict(self.discriminator.predict(x, verbose = 0))*w)/np.sum(w)
@@ -490,9 +486,6 @@ class WGANGP(object):
         if epoch >= self.n_pretrain and not self.no_critic:
           c = 0.0
           for x_s,w_s,y_s in self.get_batch(origin = 'test', syst = True):
-            #x_s, w_s, y_s = self.get_batch(syst = True)
-            x_s = x_s.values
-            w_s = w_s.values
             critic_metric_syst += np.sum(self.critic.predict(self.discriminator.predict(x_s, verbose = 0))*w_s)/np.sum(w_s)
             c += 1.0
           critic_metric_syst /= c
