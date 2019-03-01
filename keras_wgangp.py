@@ -508,7 +508,7 @@ class WGANGP(object):
 
         self.critic_loss_train = np.append(self.critic_loss_train, [critic_metric])
         self.critic_loss_nom_train = np.append(self.critic_loss_nom_train, [critic_metric_nom])
-        self.critic_loss_syst_train = np.append(self.critic_loss_syst_train, [critic_metric_syst])
+        self.critic_loss_sys_train = np.append(self.critic_loss_sys_train, [critic_metric_syst])
         self.disc_loss_train = np.append(self.disc_loss_train, [disc_metric])
         self.critic_gp_loss_train = np.append(self.critic_gp_loss_train, [critic_gradient_penalty])
         floss = h5py.File('%s_loss.h5' % prefix, 'w')
