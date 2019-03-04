@@ -405,8 +405,8 @@ class WGANGP(object):
     fig.subplots_adjust(hspace=0)
     ax[1].set(xlabel = 'NN output', ylabel = 'Syst./Nominal', title = '');
     ax[0].set(xlabel = '', ylabel = 'Events', title = '');
-    ax[1].y_axis.get_label().set_position([.5, 1.05])
-    ax[0].y_axis.get_label().set_position([.5, 1.05])
+    ax[1].yaxis.get_label().set_position([.5, 1.05])
+    ax[0].yaxis.get_label().set_position([.5, 1.05])
     ax[0].legend(frameon = False)
     ax[0].grid(True)
     ax[1].grid(True)
