@@ -94,7 +94,7 @@ class WGANGP(object):
 
   def __init__(self, n_iteration = 2000, n_pretrain = 200, n_critic = 5,
                n_batch = 32,
-               lambda_decorr = 1e-1,
+               lambda_decorr = 1.0,
                lambda_gp = 10.0,
                n_eval = 50,
                no_critic = False):
@@ -352,6 +352,63 @@ class WGANGP(object):
     plt.savefig(filename)
     plt.close("all")
 
+  def plot_discriminator_output_syst(self, filename):
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
+    out_signal = []
+    for x,w,y in self.get_batch(origin = 'test', signal = True, syst = False): out_signal.extend(self.discriminator.predict(x))
+    out_signal = np.array(out_signal)
+    out_bkg = []
+    for x,w,y in self.get_batch(origin = 'test', signal = False, syst = False): out_bkg.extend(self.discriminator.predict(x))
+    out_bkg = np.array(out_bkg)
+
+    out_signal_s = []
+    for x,w,y in self.get_batch(origin = 'test', signal = True, syst = True): out_signal_s.extend(self.discriminator.predict(x))
+    out_signal_s = np.array(out_signal_s)
+    out_bkg_s = []
+    for x,w,y in self.get_batch(origin = 'test', signal = False, syst = True): out_bkg_s.extend(self.discriminator.predict(x))
+    out_bkg_s = np.array(out_bkg_s)
+
+    bins = np.linspace(np.amin(out_signal), np.amax(out_signal), 10)
+    h_signal, be = np.histogram(out_signal, bins = bins)
+    e_signal, _ = np.histogram(out_signal**2, bins = bins)
+    h_bkg, _ = np.histogram(out_bkg, bins = bins)
+    e_bkg, _ = np.histogram(out_bkg**2, bins = bins)
+
+    h_signal_s, _ = np.histogram(out_signal_s, bins = bins)
+    e_signal_s, _ = np.histogram(out_signal_s**2, bins = bins)
+    h_bkg_s, _ = np.histogram(out_bkg_s, bins = bins)
+    e_bkg_s, _ = np.histogram(out_bkg_s**2, bins = bins)
+
+    ax1 = plt.subplot(2, 1, 1)
+
+    plt.errorbar(be, h_signal, y_err = np.sqrt(e_signal), drawstyle = 'steps-pre', color = 'r', linewidth = 2, label = 'Test signal (nominal)', ax = ax1)
+    plt.errorbar(be, h_bkg, y_err = np.sqrt(e_bkg), drawstyle = 'steps-pre', color = 'b', linewidth = 2, label = 'Test bkg. (nominal)', ax = ax1)
+
+    plt.errorbar(be, h_signal_s, y_err = np.sqrt(e_signal_s), drawstyle = 'steps-pre', color = 'r', linewidth = 2, linestyle = '--', label = 'Test signal (syst.)', ax = ax1)
+    plt.errorbar(be, h_bkg_s, y_err = np.sqrt(e_bkg_s), drawstyle = 'steps-pre', color = 'b', linewidth = 2, linestyle = '--', label = 'Test bkg. (syst.)', ax = ax1)
+
+    hr_signal = h_signal_s/h_signal
+    er_signal = e_signal_s*(1.0/h_signal)**2 + e_signal*(h_signal_s/h_signal**2)**2
+    hr_bkg = h_bkg_s/h_bkg
+    er_bkg = e_bkg_s*(1.0/h_bkg)**2 + e_bkg*(h_bkg_s/h_bkg**2)**2
+
+    ax2 = plt.subplot(2, 1, 2, sharex = ax1)
+    plt.errorbar(be, hr_signal, y_err = np.sqrt(er_signal), drawstyle = 'steps-pre', color = 'r', linewidth = 2, ax = ax2)
+    plt.errorbar(be, hr_bkg, y_err = np.sqrt(er_bkg), drawstyle = 'steps-pre', color = 'b', linewidth = 2, ax = ax2)
+
+    ax2.set_ylim([0.7, 1.3])
+
+    plt.tight_layout()
+    ax2.set(xlabel = 'NN output', ylabel = 'Syst./Nominal', title = '');
+    ax1.set(xlabel = '', ylabel = 'Events', title = '');
+    ax1.legend(frameon = False)
+    ax1.set_grid()
+    ax2.set_grid()
+    plt.savefig(filename)
+    plt.close("all")
+
   def plot_critic_output(self, filename):
     import matplotlib.pyplot as plt
     import seaborn as sns
@@ -531,6 +588,7 @@ class WGANGP(object):
     self.critic_loss_sys_train = floss['critic_loss_sys'][:]
     self.disc_loss_train = floss['disc_loss'][:]
     self.critic_gp_loss_train = floss['critic_gp_loss'][:]
+    self.n_iteration = len(self.disc_loss_train)*self.n_eval
     floss.close()
 
   def plot_train_metrics(self, filename, nnTaken = -1):
@@ -600,7 +658,7 @@ class WGANGP(object):
     json_file = open('%s.json' % critic_filename, 'r')
     loaded_model_json = json_file.read()
     json_file.close()
-    self.critic = K.models.model_from_json(loaded_model_json, custom_objects = {'MinibatchDiscrimination': MinibatchDiscrimination, 'LayerNormalization': LayerNormalization})
+    self.critic = K.models.model_from_json(loaded_model_json, custom_objects = {'LayerNormalization': LayerNormalization})
     self.critic.load_weights("%s.h5" % critic_filename)
 
     self.critic_input = K.layers.Input(shape = (1,), name = 'critic_input')
@@ -633,9 +691,9 @@ def main():
   parser.add_argument('--no-critic', dest='no_critic', action='store',
                     default=False,
                     help='If True, train only the discriminator. (default: False)')
-  parser.add_argument('--mode', metavar='MODE', choices=['train', 'read'],
+  parser.add_argument('--mode', metavar='MODE', choices=['train', 'plot_loss', 'plot_input', 'plot_output', 'plot_disc', 'plot_critic'],
                      default = 'train',
-                     help='The mode is either "train" (a neural network) or "read" (a pre-trained network). (default: train)')
+                     help='The mode is either "train" (a neural network), "plot_loss" (plot loss from training), "plot_input" (plot input variables and correlations), "plot_output" (plot output variables), "plot_disc" (plot discriminator output), "plot_critic" (plot critic output). (default: train)')
   args = parser.parse_args()
   prefix = args.prefix
   trained = args.trained
@@ -683,12 +741,23 @@ def main():
     network.plot_discriminator_output("%s/%s_discriminator_output.pdf" % (args.result_dir, prefix))
     print("Plotting critic output after training.")
     network.plot_critic_output("%s/%s_critic_output.pdf" % (args.result_dir, prefix))
-  else: # just load the pre-trained network otherwise
-    print("Loading network.")
-    network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_critic_%s" % (args.network_dir, prefix, trained))
-
+  elif args.mode == 'plot_loss':
     network.load_loss("%s/%s_loss.h5" % (args.result_dir, prefix))
     network.plot_train_metrics("%s/%s_training.pdf" % (args.result_dir, prefix), int(trained))
+  elif args.mode == 'plot_disc':
+    network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_critic_%s" % (args.network_dir, prefix, trained))
+    network.plot_discriminator_output("%s/%s_discriminator_output.pdf" % (args.result_dir, prefix))
+  elif args.mode == 'plot_critic':
+    network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_critic_%s" % (args.network_dir, prefix, trained))
+    network.plot_critic_output("%s/%s_critic_output.pdf" % (args.result_dir, prefix))
+  elif args.mode == 'plot_input':
+    network.plot_input_correlations("%s/%s_corr.pdf" % (args.result_dir, prefix))
+    network.plot_scatter_input(0, 1, "%s/%s_scatter_%d_%d.png" % (args.result_dir, prefix, 0, 1))
+  elif args.mode == 'plot_output':
+    network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_critic_%s" % (args.network_dir, prefix, trained))
+    network.plot_discriminator_output_syst("%s/%s_discriminator_output_syst.pdf" % (args.result_dir, prefix))
+  else:
+    print('Option mode not understood.')
 
 if __name__ == '__main__':
   main()
