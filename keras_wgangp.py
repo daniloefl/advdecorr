@@ -382,31 +382,34 @@ class WGANGP(object):
     e_bkg_s, _ = np.histogram(out_bkg_s**2, bins = bins)
 
     fig, ax = plt.subplots(nrows = 2, ncols = 1, sharex = True, gridspec_kw = {'height_ratios':[4, 1]})
-    be = be[:-1]
+    be = be
+    bc = 0.5*be[0:-1] + 0.5*be[1:]
+    xbl = bc - be[0:-1]
+    xbh = be[1:] - bc
     N = len(e_signal)
 
-    ax[0].errorbar(be, h_signal, yerr = np.sqrt(e_signal), drawstyle = 'steps-post', color = 'r', linewidth = 2, label = 'Test signal (nominal)')
-    ax[0].errorbar(be, h_bkg, yerr = np.sqrt(e_bkg), drawstyle = 'steps-post', color = 'b', linewidth = 2, label = 'Test bkg. (nominal)')
+    ax[0].errorbar(bc, h_signal, xerr = [xbl, xbh], yerr = np.sqrt(e_signal), color = 'r', linewidth = 2, label = 'Test signal (nominal)')
+    ax[0].errorbar(bc, h_bkg, xerr = [xbl, xbh], yerr = np.sqrt(e_bkg), color = 'b', linewidth = 2, label = 'Test bkg. (nominal)')
 
-    ax[0].errorbar(be, h_signal_s, yerr = np.sqrt(e_signal_s), drawstyle = 'steps-post', color = 'r', linewidth = 2, linestyle = '--', label = 'Test signal (syst.)')
-    ax[0].errorbar(be, h_bkg_s, yerr = np.sqrt(e_bkg_s), drawstyle = 'steps-post', color = 'b', linewidth = 2, linestyle = '--', label = 'Test bkg. (syst.)')
+    ax[0].errorbar(bc, h_signal_s, xerr = [xbl, xbh], yerr = np.sqrt(e_signal_s), color = 'r', linewidth = 2, linestyle = '--', label = 'Test signal (syst.)')
+    ax[0].errorbar(bc, h_bkg_s, xerr = [xbl, xbh], yerr = np.sqrt(e_bkg_s), color = 'b', linewidth = 2, linestyle = '--', label = 'Test bkg. (syst.)')
 
     hr_signal = np.divide(h_signal_s, h_signal, out = np.zeros(N), where = h_signal != 0)
     er_signal = e_signal_s*(np.divide(np.ones(N), h_signal, out = np.zeros(N), where = h_signal != 0))**2 + e_signal*(np.divide(h_signal_s, h_signal, where = h_signal != 0)**2)**2
     hr_bkg = np.divide(h_bkg_s, h_bkg, out = np.zeros(N), where = h_bkg != 0)
     er_bkg = e_bkg_s*(np.divide(np.ones(N), h_bkg, out = np.zeros(N), where = h_bkg != 0))**2 + e_bkg*(np.divide(h_bkg_s, h_bkg, out = np.zeros(N), where = h_bkg != 0)**2)**2
 
-    ax[1].errorbar(be, hr_signal, yerr = np.sqrt(er_signal), drawstyle = 'steps-pre', color = 'r', linewidth = 2)
-    ax[1].errorbar(be, hr_bkg, yerr = np.sqrt(er_bkg), drawstyle = 'steps-pre', color = 'b', linewidth = 2)
+    ax[1].errorbar(bc, hr_signal, xerr = [xbl, xbh], yerr = np.sqrt(er_signal), color = 'r', linewidth = 2)
+    ax[1].errorbar(bc, hr_bkg, xerr = [xbl, xbh], yerr = np.sqrt(er_bkg), color = 'b', linewidth = 2)
 
     ax[1].set_ylim([0.0, 2.0])
 
-    plt.tight_layout()
+    #plt.tight_layout()
     fig.subplots_adjust(hspace=0)
     ax[1].set(xlabel = 'NN output', ylabel = 'Syst./Nominal', title = '');
     ax[0].set(xlabel = '', ylabel = 'Events', title = '');
-    ax[1].yaxis.get_label().set_position([.5, 1.05])
-    ax[0].yaxis.get_label().set_position([.5, 1.05])
+    #ax[1].yaxis.get_label().set_position([.5, 1.05])
+    #ax[0].yaxis.get_label().set_position([.5, 1.05])
     ax[0].legend(frameon = False)
     ax[0].grid(True)
     ax[1].grid(True)
