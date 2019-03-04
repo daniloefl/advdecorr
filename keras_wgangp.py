@@ -92,9 +92,9 @@ class WGANGP(object):
   4) Go back to 2 and repeat this n_iteration times.
   '''
 
-  def __init__(self, n_iteration = 500, n_pretrain = 200, n_critic = 5,
+  def __init__(self, n_iteration = 2000, n_pretrain = 200, n_critic = 5,
                n_batch = 32,
-               lambda_decorr = 1.0,
+               lambda_decorr = 1e-1,
                lambda_gp = 10.0,
                n_eval = 50,
                no_critic = False):
@@ -127,20 +127,20 @@ class WGANGP(object):
   def create_critic(self):
     self.critic_input = Input(shape = (1,), name = 'critic_input')
     xc = self.critic_input
-    xc = Dense(200, activation = None, name = "adv_0")(xc) #, kernel_regularizer = K.regularizers.l2(0.1))(xc)
+    xc = Dense(200, activation = None, name = "adv_0")(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = Dense(100, activation = None, name = "adv_1")(xc) #, kernel_regularizer = K.regularizers.l2(0.1))(xc)
-    xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = LayerNormalization()(xc)
-    xc = Dense(50, activation = None, name = "adv_2")(xc) #, kernel_regularizer = K.regularizers.l2(0.1))(xc)
+    xc = Dense(100, activation = None, name = "adv_1")(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = LayerNormalization()(xc)
-    xc = Dense(40, activation = None, name = "adv_3")(xc) #, kernel_regularizer = K.regularizers.l2(0.1))(xc)
+    xc = Dense(50, activation = None, name = "adv_2")(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = LayerNormalization()(xc)
-    xc = Dense(10, activation = None, name = "adv_4")(xc) #, kernel_regularizer = K.regularizers.l2(0.1))(xc)
+    xc = Dense(40, activation = None, name = "adv_3")(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = Dense(1, activation = None, name = "adv_7")(xc) #, kernel_regularizer = K.regularizers.l2(0.1))(xc)
+    xc = LayerNormalization()(xc)
+    xc = Dense(10, activation = None, name = "adv_4")(xc)
+    xc = K.layers.LeakyReLU(0.2)(xc)
+    xc = Dense(1, activation = None, name = "adv_7")(xc)
     self.critic = Model(self.critic_input, xc, name = "critic")
     self.critic.trainable = True
     self.critic.compile(loss = wasserstein_loss,
@@ -204,8 +204,8 @@ class WGANGP(object):
                                    name = "disc_fixed_critic")
     self.disc_fixed_critic.compile(loss = [wasserstein_loss, partial_gp_loss],
                                    loss_weights = [self.lambda_decorr, self.lambda_gp],
-                                   optimizer = RMSprop(lr = 1e-4), metrics = [])
-                                   #optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
+                                   #optimizer = RMSprop(lr = 1e-4), metrics = [])
+                                   optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
     self.discriminator.trainable = True
     self.critic.trainable = False
@@ -221,8 +221,8 @@ class WGANGP(object):
                                    name = "disc_critic_fixed")
     self.disc_critic_fixed.compile(loss = [K.losses.mean_squared_error, wasserstein_loss],
                                    loss_weights = [1.0, -self.lambda_decorr],
-                                   optimizer = RMSprop(lr = 1e-4), metrics = [])
-                                   #optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
+                                   #optimizer = RMSprop(lr = 1e-4), metrics = [])
+                                   optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
 
     print("Signal/background discriminator:")
@@ -243,7 +243,6 @@ class WGANGP(object):
 
   '''
   '''
-  #@profile
   def read_input_from_files(self, filename = 'input_preprocessed.h5'):
     self.file = h5py.File(filename)
     self.n_dimensions = self.file['train'].shape[1]-3
@@ -418,7 +417,7 @@ class WGANGP(object):
     y_batch = self.file['train'][r, self.col_signal]
     return x_batch, x_batch_w, y_batch
 
-  def train(self, prefix):
+  def train(self, prefix, result_dir, network_dir):
     # algorithm:
     # 0) pretrain discriminator
     # 1) Train adv. to guess syst. (freezing discriminator)
@@ -511,7 +510,7 @@ class WGANGP(object):
         self.critic_loss_sys_train = np.append(self.critic_loss_sys_train, [critic_metric_syst])
         self.disc_loss_train = np.append(self.disc_loss_train, [disc_metric])
         self.critic_gp_loss_train = np.append(self.critic_gp_loss_train, [critic_gradient_penalty])
-        floss = h5py.File('%s_loss.h5' % prefix, 'w')
+        floss = h5py.File('%s/%s_loss.h5' % (result_dir, prefix), 'w')
         floss.create_dataset('critic_loss', data = self.critic_loss_train)
         floss.create_dataset('critic_loss_nom', data = self.critic_loss_nom_train)
         floss.create_dataset('critic_loss_sys', data = self.critic_loss_sys_train)
@@ -520,7 +519,7 @@ class WGANGP(object):
         floss.close()
 
         print("Batch %5d: L_{disc. only} = %10.7f; - lambda_{decorr} L_{critic} = %10.7f ; L_{critic,nom} = %10.7f ; L_{critic,sys} = %10.7f ; lambda_{gp} (|grad C| - 1)^2 = %10.7f" % (epoch, disc_metric, -self.lambda_decorr*critic_metric, critic_metric_nom, critic_metric_syst, self.lambda_gp*critic_gradient_penalty))
-        self.save("%s_discriminator_%d" % (prefix, epoch), "%s_critic_%d" % (prefix, epoch))
+        self.save("%s/%s_discriminator_%d" % (network_dir, prefix, epoch), "%s/%s_critic_%d" % (network_dir, prefix, epoch))
       #gc.collect()
 
     print("============ End of training ===============")
@@ -616,12 +615,18 @@ def main():
   import argparse
 
   parser = argparse.ArgumentParser(description = 'Train a Wasserstein GAN with gradient penalty to classify signal versus background while being insensitive to systematic variations.')
+  parser.add_argument('--network-dir', dest='network_dir', action='store',
+                    default='network',
+                    help='Directory where networks are saved during training. (default: "network")')
+  parser.add_argument('--result-dir', dest='result_dir', action='store',
+                    default='result',
+                    help='Directory where results are saved. (default: "result")')
   parser.add_argument('--input-file', dest='input', action='store',
                     default='input.h5',
                     help='Name of the file from where to read the input. If the file does not exist, create it. (default: "input.h5")')
   parser.add_argument('--load-trained', dest='trained', action='store',
-                    default='20000',
-                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "20000")')
+                    default='1950',
+                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "1950")')
   parser.add_argument('--prefix', dest='prefix', action='store',
                     default='wgangp',
                     help='Prefix to be added to filenames when producing plots. (default: "wgangp")')
@@ -635,6 +640,11 @@ def main():
   prefix = args.prefix
   trained = args.trained
 
+  if not os.path.exists(args.result_dir):
+    os.makedirs(args.result_dir)
+  if not os.path.exists(args.network_dir):
+    os.makedirs(args.network_dir)
+
   network = WGANGP(no_critic = args.no_critic)
   # apply pre-processing if the preprocessed file does not exist
   if not os.path.isfile(args.input):
@@ -646,9 +656,9 @@ def main():
   # when training make some debug plots and prepare the network
   if args.mode == 'train':
     print("Plotting correlations.")
-    network.plot_input_correlations("%s_corr.pdf" % prefix)
+    network.plot_input_correlations("%s/%s_corr.pdf" % (args.result_dir, prefix))
     print("Plotting scatter plots.")
-    network.plot_scatter_input(0, 1, "%s_scatter_%d_%d.png" % (prefix, 0, 1))
+    network.plot_scatter_input(0, 1, "%s/%s_scatter_%d_%d.png" % (args.result_dir, prefix, 0, 1))
 
     # create network
     network.create_networks()
@@ -657,29 +667,29 @@ def main():
     # this will just be random!
     # try to predict if the signal or bkg. events in the test set are really signal or bkg.
     print("Plotting discriminator output.")
-    network.plot_discriminator_output("%s_discriminator_output_before_training.pdf" % prefix)
+    network.plot_discriminator_output("%s/%s_discriminator_output_before_training.pdf" % (args.result_dir, prefix))
     print("Plotting critic output.")
-    network.plot_critic_output("%s_critic_output_before_training.pdf" % prefix)
+    network.plot_critic_output("%s/%s_critic_output_before_training.pdf" % (args.result_dir, prefix))
 
     # train it
     print("Training.")
-    network.train(prefix)
+    network.train(prefix, args.result_dir, args.network_dir)
 
     # plot training evolution
     print("Plotting train metrics.")
-    network.plot_train_metrics("%s_training.pdf" % prefix)
+    network.plot_train_metrics("%s/%s_training.pdf" % (args.result_dir, prefix))
 
     print("Plotting discriminator output after training.")
-    network.plot_discriminator_output("%s_discriminator_output.pdf" % prefix)
+    network.plot_discriminator_output("%s/%s_discriminator_output.pdf" % (args.result_dir, prefix))
     print("Plotting critic output after training.")
-    network.plot_critic_output("%s_critic_output.pdf" % prefix)
+    network.plot_critic_output("%s/%s_critic_output.pdf" % (args.result_dir, prefix))
   else: # just load the pre-trained network otherwise
     print("Loading network.")
-    network.load("%s_discriminator_%s" % (prefix, trained), "%s_critic_%s" % (prefix, trained))
+    network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_critic_%s" % (args.network_dir, prefix, trained))
 
-    network.load_loss("%s_loss.h5" % prefix)
-    network.plot_train_metrics("%s_training.pdf" % prefix, int(trained))
-
+    network.load_loss("%s/%s_loss.h5" % (args.result_dir, prefix))
+    network.plot_train_metrics("%s/%s_training.pdf" % (args.result_dir, prefix), int(trained))
 
 if __name__ == '__main__':
   main()
+
