@@ -92,9 +92,9 @@ class WGANGP(object):
   4) Go back to 2 and repeat this n_iteration times.
   '''
 
-  def __init__(self, n_iteration = 2000, n_pretrain = 200, n_critic = 5,
+  def __init__(self, n_iteration = 10000, n_pretrain = 200, n_critic = 5,
                n_batch = 32,
-               lambda_decorr = 1.0,
+               lambda_decorr = 0.5,
                lambda_gp = 10.0,
                n_eval = 50,
                no_critic = False):
@@ -209,20 +209,20 @@ class WGANGP(object):
 
     self.discriminator.trainable = True
     self.critic.trainable = False
-    #self.disc_critic_fixed = Model([self.discriminator_input, self.nominal_input, self.syst_input, self.nominal_input_w, self.syst_input_w],
-    #                               [self.discriminator(self.discriminator_input), wdistance],
-    #                               name = "disc_critic_fixed")
-    #self.disc_critic_fixed.compile(loss = [K.losses.mean_squared_error, wasserstein_loss],
-    #                               loss_weights = [1.0, -self.lambda_decorr],
-    #                               optimizer = RMSprop(lr = 1e-4), metrics = [])
-    #                               #optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
-    self.disc_critic_fixed = Model([self.discriminator_input, self.nominal_input, self.nominal_input_w],
-                                   [self.discriminator(self.discriminator_input), wdistance_nom],
+    self.disc_critic_fixed = Model([self.discriminator_input, self.nominal_input, self.syst_input, self.nominal_input_w, self.syst_input_w],
+                                   [self.discriminator(self.discriminator_input), wdistance],
                                    name = "disc_critic_fixed")
     self.disc_critic_fixed.compile(loss = [K.losses.mean_squared_error, wasserstein_loss],
                                    loss_weights = [1.0, -self.lambda_decorr],
                                    #optimizer = RMSprop(lr = 1e-4), metrics = [])
                                    optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
+    #self.disc_critic_fixed = Model([self.discriminator_input, self.nominal_input, self.nominal_input_w],
+    #                               [self.discriminator(self.discriminator_input), wdistance_nom],
+    #                               name = "disc_critic_fixed")
+    #self.disc_critic_fixed.compile(loss = [K.losses.mean_squared_error, wasserstein_loss],
+    #                               loss_weights = [1.0, -self.lambda_decorr],
+    #                               #optimizer = RMSprop(lr = 1e-4), metrics = [])
+    #                               optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
 
     print("Signal/background discriminator:")
@@ -370,7 +370,7 @@ class WGANGP(object):
     for x,w,y in self.get_batch(origin = 'test', signal = False, syst = True): out_bkg_s.extend(self.discriminator.predict(x))
     out_bkg_s = np.array(out_bkg_s)
 
-    bins = np.linspace(np.amin(out_signal), np.amax(out_signal), 10)
+    bins = np.linspace(0, 1.0, 20)
     h_signal, be = np.histogram(out_signal, bins = bins)
     e_signal, _ = np.histogram(out_signal**2, bins = bins)
     h_bkg, _ = np.histogram(out_bkg, bins = bins)
@@ -382,37 +382,64 @@ class WGANGP(object):
     e_bkg_s, _ = np.histogram(out_bkg_s**2, bins = bins)
 
     fig, ax = plt.subplots(nrows = 2, ncols = 1, sharex = True, gridspec_kw = {'height_ratios':[4, 1]})
-    be = be
+    bel = be[:-1]
     bc = 0.5*be[0:-1] + 0.5*be[1:]
     xbl = bc - be[0:-1]
     xbh = be[1:] - bc
     N = len(e_signal)
 
-    ax[0].errorbar(bc, h_signal, xerr = [xbl, xbh], yerr = np.sqrt(e_signal), color = 'r', linewidth = 2, label = 'Test signal (nominal)')
-    ax[0].errorbar(bc, h_bkg, xerr = [xbl, xbh], yerr = np.sqrt(e_bkg), color = 'b', linewidth = 2, label = 'Test bkg. (nominal)')
+    bel = np.concatenate( (np.array([bel[0]]), bel, np.array([bel[-1]])) )
+    h_signal = np.concatenate( (np.array([0]), h_signal, np.array([0])) )
+    h_bkg = np.concatenate( (np.array([0]), h_bkg, np.array([0])) )
+    h_signal_s = np.concatenate( (np.array([0]), h_signal_s, np.array([0])) )
+    h_bkg_s = np.concatenate( (np.array([0]), h_bkg_s, np.array([0])) )
+    e_signal = np.concatenate( (np.array([0]), e_signal, np.array([0])) )
+    e_bkg = np.concatenate( (np.array([0]), e_bkg, np.array([0])) )
+    e_signal_s = np.concatenate( (np.array([0]), e_signal_s, np.array([0])) )
+    e_bkg_s = np.concatenate( (np.array([0]), e_bkg_s, np.array([0])) )
+    N += 2
 
-    ax[0].errorbar(bc, h_signal_s, xerr = [xbl, xbh], yerr = np.sqrt(e_signal_s), color = 'r', linewidth = 2, linestyle = '--', label = 'Test signal (syst.)')
-    ax[0].errorbar(bc, h_bkg_s, xerr = [xbl, xbh], yerr = np.sqrt(e_bkg_s), color = 'b', linewidth = 2, linestyle = '--', label = 'Test bkg. (syst.)')
+    ax[0].plot(bel, h_signal, color = 'r', linewidth = 2, label = 'Test signal (nominal)', drawstyle = 'steps-post')
+    #ax[0].errorbar(bel, h_signal, yerr = e_signal, color = 'r', drawstyle = 'steps-post')
+    ax[0].plot(bel, h_bkg, color = 'b', linewidth = 2, label = 'Test bkg. (nominal)', drawstyle = 'steps-post')
+    #ax[0].errorbar(bel, h_bkg, yerr = e_bkg, color = 'b', drawstyle = 'steps-post')
+
+    ax[0].plot(bel, h_signal_s, color = 'r', linewidth = 2, linestyle = '--', label = 'Test signal (syst.)', drawstyle = 'steps-post')
+    #ax[0].errorbar(bel, h_signal_s, yerr = e_signal_s, color = 'r', drawstyle = 'steps-post')
+    ax[0].plot(bel, h_bkg_s, color = 'b', linewidth = 2, linestyle = '--', label = 'Test bkg. (syst.)', drawstyle = 'steps-post')
+    #ax[0].errorbar(bel, h_bkg_s, yerr = e_bkg_s, color = 'b', drawstyle = 'steps-post')
 
     hr_signal = np.divide(h_signal_s, h_signal, out = np.zeros(N), where = h_signal != 0)
     er_signal = e_signal_s*(np.divide(np.ones(N), h_signal, out = np.zeros(N), where = h_signal != 0))**2 + e_signal*(np.divide(h_signal_s, h_signal, where = h_signal != 0)**2)**2
     hr_bkg = np.divide(h_bkg_s, h_bkg, out = np.zeros(N), where = h_bkg != 0)
     er_bkg = e_bkg_s*(np.divide(np.ones(N), h_bkg, out = np.zeros(N), where = h_bkg != 0))**2 + e_bkg*(np.divide(h_bkg_s, h_bkg, out = np.zeros(N), where = h_bkg != 0)**2)**2
 
-    ax[1].errorbar(bc, hr_signal, xerr = [xbl, xbh], yerr = np.sqrt(er_signal), color = 'r', linewidth = 2)
-    ax[1].errorbar(bc, hr_bkg, xerr = [xbl, xbh], yerr = np.sqrt(er_bkg), color = 'b', linewidth = 2)
+    ax[1].plot(bel, hr_signal, color = 'r', linewidth = 2, drawstyle = 'steps-post')
+    #ax[1].errorbar(bel, hr_signal, yerr = er_signal, color = 'r', drawstyle = 'steps-post')
+    ax[1].plot(bel, hr_bkg, color = 'b', linewidth = 2, drawstyle = 'steps-post')
+    #ax[1].errorbar(bel, hr_bkg, yerr = er_bkg, color = 'b', drawstyle = 'steps-post')
 
     ax[1].set_ylim([0.0, 2.0])
+    m = np.amax(np.concatenate( (h_signal, h_bkg, h_signal_s, h_bkg_s) ) )
+    ax[0].set_ylim([0.0, 1.1*m])
 
     #plt.tight_layout()
     fig.subplots_adjust(hspace=0)
     ax[1].set(xlabel = 'NN output', ylabel = 'Syst./Nominal', title = '');
     ax[0].set(xlabel = '', ylabel = 'Events', title = '');
-    #ax[1].yaxis.get_label().set_position([.5, 1.05])
-    #ax[0].yaxis.get_label().set_position([.5, 1.05])
+
+    p = ax[1].yaxis.get_label().get_position()
+    ax[1].yaxis.get_label().set_position([0.10, p[1]])
+    p = ax[0].yaxis.get_label().get_position()
+    ax[0].yaxis.get_label().set_position([0.10, p[1]])
+
     ax[0].legend(frameon = False)
     ax[0].grid(True)
     ax[1].grid(True)
+    plt.draw()
+    tl = [i.get_text() for i in ax[0].get_yticklabels()]
+    tl[0] = ""
+    ax[0].set_yticklabels(tl)
     plt.savefig(filename)
     plt.close("all")
 
@@ -527,12 +554,12 @@ class WGANGP(object):
 
           self.discriminator.trainable = True
           self.critic.trainable = False
-          #self.disc_critic_fixed.train_on_batch([x_batch_nom, x_batch_nom, x_batch_syst, x_batch_nom_w, x_batch_syst_w],
-          #                                      [y_batch_nom, positive_y],
-          #                                      sample_weight = [x_batch_nom_w, positive_y])
-          self.disc_critic_fixed.train_on_batch([x_batch_nom, x_batch_nom, x_batch_nom_w],
+          self.disc_critic_fixed.train_on_batch([x_batch_nom, x_batch_nom, x_batch_syst, x_batch_nom_w, x_batch_syst_w],
                                                 [y_batch_nom, positive_y],
                                                 sample_weight = [x_batch_nom_w, positive_y])
+          #self.disc_critic_fixed.train_on_batch([x_batch_nom, x_batch_nom, x_batch_nom_w],
+          #                                      [y_batch_nom, positive_y],
+          #                                      sample_weight = [x_batch_nom_w, positive_y])
   
       if epoch % self.n_eval == 0:
         disc_metric = 0
