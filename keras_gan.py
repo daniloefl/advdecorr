@@ -113,7 +113,7 @@ class GAN(object):
     xc = LayerNormalization()(xc)
     xc = Dense(10, activation = None, name = "adv_4")(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = Dense(1, activation = None, name = "adv_7")(xc)
+    xc = Dense(1, activation = 'sigmoid', name = "adv_7")(xc)
     self.adv = Model(self.adv_input, xc, name = "adv")
     self.adv.trainable = True
     self.adv.compile(loss = K.losses.binary_crossentropy,
@@ -168,7 +168,7 @@ class GAN(object):
                                 [self.adv(self.discriminator(self.nominal_input)), self.adv(self.discriminator(self.syst_input))],
                                 name = "disc_fixed_adv")
     self.disc_fixed_adv.compile(loss = [K.losses.binary_crossentropy, K.losses.binary_crossentropy],
-                                loss_weights = [self.lambda_decorr, self.lambda_decorr],
+                                loss_weights = [self.lambda_decorr, -self.lambda_decorr],
                                 #optimizer = RMSprop(lr = 1e-4), metrics = [])
                                 optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
@@ -178,7 +178,7 @@ class GAN(object):
                                 [self.discriminator(self.discriminator_input), self.adv(self.discriminator(self.nominal_input)), self.adv(self.discriminator(self.syst_input))],
                                 name = "disc_adv_fixed")
     self.disc_adv_fixed.compile(loss = [K.losses.binary_crossentropy, K.losses.binary_crossentropy, K.losses.binary_crossentropy],
-                                   loss_weights = [1.0, -self.lambda_decorr, -self.lambda_decorr],
+                                   loss_weights = [1.0, -self.lambda_decorr, self.lambda_decorr],
                                    #optimizer = RMSprop(lr = 1e-4), metrics = [])
                                    optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
@@ -508,7 +508,7 @@ class GAN(object):
             self.discriminator.trainable = False
             self.adv.trainable = True
             self.disc_fixed_adv.train_on_batch([x_batch_nom, x_batch_syst],
-                                               [positive_y, zero_y],
+                                               [positive_y, positive_y],
                                                sample_weight = [x_batch_nom_w, x_batch_syst_w])
 
           # step generator
@@ -518,7 +518,7 @@ class GAN(object):
           self.discriminator.trainable = True
           self.adv.trainable = False
           self.disc_adv_fixed.train_on_batch([x_batch_nom, x_batch_nom, x_batch_syst],
-                                             [y_batch_nom, positive_y, zero_y],
+                                             [y_batch_nom, positive_y, positive_y],
                                              sample_weight = [x_batch_nom_w, x_batch_nom_w, x_batch_syst_w])
   
       if epoch % self.n_eval == 0:
@@ -539,7 +539,7 @@ class GAN(object):
             adv_metric_syst += self.adv.evaluate(self.discriminator.predict(x_s, verbose = 0), np.zeros_like(y_s), sample_weight = w_s, verbose = 0)
             c += 1.0
           adv_metric_syst /= c
-        adv_metric = adv_metric_nom + adv_metric_syst
+        adv_metric = adv_metric_nom - adv_metric_syst
         if adv_metric == 0: adv_metric = 1e-20
 
         self.adv_loss_train = np.append(self.adv_loss_train, [adv_metric])
