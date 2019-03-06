@@ -536,7 +536,7 @@ class GAN(object):
         if epoch >= self.n_pretrain and not self.no_adv:
           c = 0.0
           for x_s,w_s,y_s in self.get_batch(origin = 'test', syst = True):
-            adv_metric_syst += self.adv.evaluate(self.discriminator.predict(x_s, verbose = 0), np.zeros_like(y_s), sample_weight = w_s, verbose = 0)
+            adv_metric_syst += self.adv.evaluate(self.discriminator.predict(x_s, verbose = 0), np.ones_like(y_s), sample_weight = w_s, verbose = 0)
             c += 1.0
           adv_metric_syst /= c
         adv_metric = adv_metric_nom - adv_metric_syst
