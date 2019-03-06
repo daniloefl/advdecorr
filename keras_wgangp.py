@@ -94,7 +94,7 @@ class WGANGP(object):
 
   def __init__(self, n_iteration = 1050, n_pretrain = 200, n_critic = 5,
                n_batch = 32,
-               lambda_decorr = 1.0,
+               lambda_decorr = 10.0,
                lambda_gp = 10.0,
                n_eval = 50,
                no_critic = False):
