@@ -553,7 +553,7 @@ class GAN(object):
         floss.create_dataset('disc_loss', data = self.disc_loss_train)
         floss.close()
 
-        print("Batch %5d: L_{disc. only} = %10.7f; - lambda_{decorr} L_{adv.} = %10.7f ; L_{adv.,nom} = %10.7f ; L_{adv.,sys} = %10.7f" % (epoch, disc_metric, -self.lambda_decorr*adv_metric, adv_metric_nom, adv_metric_syst)
+        print("Batch %5d: L_{disc. only} = %10.7f; - lambda_{decorr} L_{adv.} = %10.7f ; L_{adv.,nom} = %10.7f ; L_{adv.,sys} = %10.7f" % (epoch, disc_metric, -self.lambda_decorr*adv_metric, adv_metric_nom, adv_metric_syst))
         self.save("%s/%s_discriminator_%d" % (network_dir, prefix, epoch), "%s/%s_adv_%d" % (network_dir, prefix, epoch))
       #gc.collect()
 
@@ -661,8 +661,8 @@ def main():
                     default='1950',
                     help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "1950")')
   parser.add_argument('--prefix', dest='prefix', action='store',
-                    default='wgangp',
-                    help='Prefix to be added to filenames when producing plots. (default: "wgangp")')
+                    default='gan',
+                    help='Prefix to be added to filenames when producing plots. (default: "gan")')
   parser.add_argument('--no-adv', dest='no_adv', action='store',
                     default=False,
                     help='If True, train only the discriminator. (default: False)')
@@ -678,7 +678,7 @@ def main():
   if not os.path.exists(args.network_dir):
     os.makedirs(args.network_dir)
 
-  network = WGANGP(no_adv = args.no_adv)
+  network = GAN(no_adv = args.no_adv)
   # apply pre-processing if the preprocessed file does not exist
   if not os.path.isfile(args.input):
     network.prepare_input(filename = args.input)
