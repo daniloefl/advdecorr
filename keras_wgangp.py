@@ -172,7 +172,7 @@ class WGANGP(object):
     xd = Dense(1, activation = 'sigmoid', name = "discriminator_8")(xd)
     self.discriminator = Model(self.discriminator_input, xd, name = "discriminator")
     self.discriminator.trainable = True
-    self.discriminator.compile(loss = K.losses.mean_squared_error, optimizer = Adam(lr = 1e-3), metrics = [])
+    self.discriminator.compile(loss = K.losses.binary_crossentropy, optimizer = Adam(lr = 1e-3), metrics = [])
 
   '''
   Create all networks.
@@ -212,14 +212,14 @@ class WGANGP(object):
     self.disc_critic_fixed = Model([self.discriminator_input, self.nominal_input, self.syst_input, self.nominal_input_w, self.syst_input_w],
                                    [self.discriminator(self.discriminator_input), wdistance],
                                    name = "disc_critic_fixed")
-    self.disc_critic_fixed.compile(loss = [K.losses.mean_squared_error, wasserstein_loss],
+    self.disc_critic_fixed.compile(loss = [K.losses.binary_crossentropy, wasserstein_loss],
                                    loss_weights = [1.0, -self.lambda_decorr],
                                    #optimizer = RMSprop(lr = 1e-4), metrics = [])
                                    optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
     #self.disc_critic_fixed = Model([self.discriminator_input, self.nominal_input, self.nominal_input_w],
     #                               [self.discriminator(self.discriminator_input), wdistance_nom],
     #                               name = "disc_critic_fixed")
-    #self.disc_critic_fixed.compile(loss = [K.losses.mean_squared_error, wasserstein_loss],
+    #self.disc_critic_fixed.compile(loss = [K.losses.binary_crossentropy, wasserstein_loss],
     #                               loss_weights = [1.0, -self.lambda_decorr],
     #                               #optimizer = RMSprop(lr = 1e-4), metrics = [])
     #                               optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
@@ -702,7 +702,7 @@ class WGANGP(object):
     self.critic_input = K.layers.Input(shape = (1,), name = 'critic_input')
     self.discriminator_input = K.layers.Input(shape = (self.n_dimensions,), name = 'discriminator_input')
 
-    self.discriminator.compile(loss = K.losses.mean_squared_error, optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
+    self.discriminator.compile(loss = K.losses.binary_crossentropy, optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
     self.critic.compile(loss = wasserstein_loss,
                         optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
     self.create_networks()
