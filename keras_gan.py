@@ -68,7 +68,7 @@ class GAN(object):
   4) Go back to 2 and repeat this n_iteration times.
   '''
 
-  def __init__(self, n_iteration = 10000, n_pretrain = 200, n_adv = 5,
+  def __init__(self, n_iteration = 1050, n_pretrain = 200, n_adv = 5,
                n_batch = 32,
                lambda_decorr = 1.0,
                n_eval = 50,
@@ -658,7 +658,7 @@ def main():
                     default='input.h5',
                     help='Name of the file from where to read the input. If the file does not exist, create it. (default: "input.h5")')
   parser.add_argument('--load-trained', dest='trained', action='store',
-                    default='1950',
+                    default='1000',
                     help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "1950")')
   parser.add_argument('--prefix', dest='prefix', action='store',
                     default='gan',
