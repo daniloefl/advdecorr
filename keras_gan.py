@@ -113,7 +113,7 @@ class GAN(object):
     xc = LayerNormalization()(xc)
     xc = Dense(10, activation = None, name = "adv_4")(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = Dense(1, activation = 'sigmoid', name = "adv_7")(xc)
+    xc = Dense(3, activation = 'softmax', name = "adv_7")(xc)
     self.adv = Model(self.adv_input, xc, name = "adv")
     self.adv.trainable = True
     self.adv.compile(loss = K.losses.binary_crossentropy,
@@ -167,8 +167,8 @@ class GAN(object):
     self.disc_fixed_adv = Model([self.nominal_input, self.syst_input],
                                 [self.adv(self.discriminator(self.nominal_input)), self.adv(self.discriminator(self.syst_input))],
                                 name = "disc_fixed_adv")
-    self.disc_fixed_adv.compile(loss = [K.losses.binary_crossentropy, K.losses.binary_crossentropy],
-                                loss_weights = [self.lambda_decorr, -self.lambda_decorr],
+    self.disc_fixed_adv.compile(loss = [K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
+                                loss_weights = [self.lambda_decorr, self.lambda_decorr],
                                 #optimizer = RMSprop(lr = 1e-4), metrics = [])
                                 optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
@@ -177,8 +177,8 @@ class GAN(object):
     self.disc_adv_fixed = Model([self.discriminator_input, self.nominal_input, self.syst_input],
                                 [self.discriminator(self.discriminator_input), self.adv(self.discriminator(self.nominal_input)), self.adv(self.discriminator(self.syst_input))],
                                 name = "disc_adv_fixed")
-    self.disc_adv_fixed.compile(loss = [K.losses.binary_crossentropy, K.losses.binary_crossentropy, K.losses.binary_crossentropy],
-                                   loss_weights = [1.0, -self.lambda_decorr, self.lambda_decorr],
+    self.disc_adv_fixed.compile(loss = [K.losses.binary_crossentropy, K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
+                                   loss_weights = [1.0, -self.lambda_decorr, -self.lambda_decorr],
                                    #optimizer = RMSprop(lr = 1e-4), metrics = [])
                                    optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
@@ -378,7 +378,7 @@ class GAN(object):
     ax[1].plot(bel, hr_bkg, color = 'b', linewidth = 2, drawstyle = 'steps-post')
     #ax[1].errorbar(bel, hr_bkg, yerr = er_bkg, color = 'b', drawstyle = 'steps-post')
 
-    ax[1].set_ylim([0.0, 2.0])
+    ax[1].set_ylim([0.9, 1.1])
     m = np.amax(np.concatenate( (h_signal, h_bkg, h_signal_s, h_bkg_s) ) )
     ax[0].set_ylim([0.0, 1.1*m])
 
@@ -417,10 +417,10 @@ class GAN(object):
     out_syst_var = np.array(out_syst_var)
     bins = np.linspace(np.amin(out_syst_nominal), np.amax(out_syst_nominal), 10)
     fig, ax = plt.subplots(figsize=(10, 8))
-    sns.distplot(out_syst_nominal, bins = bins,
+    sns.distplot(out_syst_nominal[:,1], bins = bins,
                  kde = False, label = "Test nominal", norm_hist = True, hist = True,
                  hist_kws={"histtype": "step", "linewidth": 2, "color": "r"})
-    sns.distplot(out_syst_var, bins = bins,
+    sns.distplot(out_syst_var[:,1], bins = bins,
                  kde = False, label = "Test syst. var.", norm_hist = True, hist = True,
                  hist_kws={"histtype": "step", "linewidth": 2, "color": "b"})
     ax.set(xlabel = 'Critic NN output', ylabel = 'Events', title = '');
@@ -480,6 +480,12 @@ class GAN(object):
     self.adv_loss_nom_train = np.array([])
     self.adv_loss_sys_train = np.array([])
     self.disc_loss_train = np.array([])
+    nominal = np.zeros( (self.n_batch, 3) )
+    syst_up = np.zeros( (self.n_batch, 3) )
+    syst_dw = np.zeros( (self.n_batch, 3) )
+    nominal[:,1] = 1.0
+    syst_up[:,0] = 1.0
+    syst_dw[:,2] = 1.0
     positive_y = np.ones(self.n_batch)
     zero_y = np.zeros(self.n_batch)
     negative_y = np.ones(self.n_batch)*(-1)
@@ -508,7 +514,7 @@ class GAN(object):
             self.discriminator.trainable = False
             self.adv.trainable = True
             self.disc_fixed_adv.train_on_batch([x_batch_nom, x_batch_syst],
-                                               [positive_y, positive_y],
+                                               [nominal, syst_up],
                                                sample_weight = [x_batch_nom_w, x_batch_syst_w])
 
           # step generator
@@ -518,7 +524,7 @@ class GAN(object):
           self.discriminator.trainable = True
           self.adv.trainable = False
           self.disc_adv_fixed.train_on_batch([x_batch_nom, x_batch_nom, x_batch_syst],
-                                             [y_batch_nom, positive_y, positive_y],
+                                             [y_batch_nom, nominal, syst_up],
                                              sample_weight = [x_batch_nom_w, x_batch_nom_w, x_batch_syst_w])
   
       if epoch % self.n_eval == 0:
@@ -529,14 +535,14 @@ class GAN(object):
         for x,w,y in self.get_batch(origin = 'test', syst = False):
           disc_metric += self.discriminator.evaluate(x, y, sample_weight = w, verbose = 0)
           if epoch >= self.n_pretrain and not self.no_adv:
-            adv_metric_nom += self.adv.evaluate(self.discriminator.predict(x, verbose = 0), np.ones_like(y), sample_weight = w, verbose = 0)
+            adv_metric_nom += self.adv.evaluate(self.discriminator.predict(x, verbose = 0), nominal, sample_weight = w, verbose = 0)
           c += 1.0
         disc_metric /= c
         adv_metric_nom /= c
         if epoch >= self.n_pretrain and not self.no_adv:
           c = 0.0
           for x_s,w_s,y_s in self.get_batch(origin = 'test', syst = True):
-            adv_metric_syst += self.adv.evaluate(self.discriminator.predict(x_s, verbose = 0), np.ones_like(y_s), sample_weight = w_s, verbose = 0)
+            adv_metric_syst += self.adv.evaluate(self.discriminator.predict(x_s, verbose = 0), syst_up, sample_weight = w_s, verbose = 0)
             c += 1.0
           adv_metric_syst /= c
         adv_metric = adv_metric_nom - adv_metric_syst
