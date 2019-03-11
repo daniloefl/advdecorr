@@ -70,7 +70,7 @@ class GAN(object):
 
   def __init__(self, n_iteration = 1050, n_pretrain = 200, n_adv = 5,
                n_batch = 32,
-               lambda_decorr = 1.0,
+               lambda_decorr = 20.0,
                n_eval = 50,
                no_adv = False):
     '''
@@ -545,7 +545,7 @@ class GAN(object):
             adv_metric_syst += self.adv.evaluate(self.discriminator.predict(x_s, verbose = 0), syst_up, sample_weight = w_s, verbose = 0)
             c += 1.0
           adv_metric_syst /= c
-        adv_metric = adv_metric_nom - adv_metric_syst
+        adv_metric = adv_metric_nom + adv_metric_syst
         if adv_metric == 0: adv_metric = 1e-20
 
         self.adv_loss_train = np.append(self.adv_loss_train, [adv_metric])
