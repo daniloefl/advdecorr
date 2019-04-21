@@ -343,7 +343,7 @@ class AAE(object):
         all_data = np.concatenate((all_data, add_all_data), axis = 0)
       print('Checking nans in %s' % t)
       self.check_nans(all_data)
-    df = pd.DataFrame(all_data, columns = ['sample', 'syst', 'weight', '0', '1'])
+    df = pd.DataFrame(all_data, columns = ['sample', 'syst', 'weight', 'A', 'B'])
     self.file.put('df', df, format = 'table', data_columns = True)
 
     for t in ['train', 'test']:
@@ -571,7 +571,7 @@ class AAE(object):
       while True:
         r = rows[i*self.n_batch : (i+1)*self.n_batch]
         r = sorted(r)
-        df = self.file.select('df', index = r)
+        df = self.file.select('df', where = 'index = r')
         x_batch = df.drop(['weight', 'sample', 'syst'], axis = 1)
         x_batch_w = df.loc[:, 'weight']
         y_batch = df.loc[:, 'sample']
@@ -585,7 +585,7 @@ class AAE(object):
       for i in range(0, int(N/self.n_batch)):
         r = rows[i*self.n_batch : (i+1)*self.n_batch]
         r = sorted(r)
-        df = self.file.select('df', where = r)
+        df = self.file.select('df', where = 'index = r')
         x_batch = df.drop(['weight', 'sample', 'syst'], axis = 1)
         x_batch_w = df.loc[:, 'weight']
         y_batch = df.loc[:, 'sample']

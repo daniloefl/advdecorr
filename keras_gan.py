@@ -457,7 +457,7 @@ class GAN(object):
       while True:
         r = rows[i*self.n_batch : (i+1)*self.n_batch]
         r = sorted(r)
-        df = self.file.select('df', index = r)
+        df = self.file.select('df', where = 'index = r')
         x_batch = df.drop(['weight', 'sample', 'syst'], axis = 1)
         x_batch_w = df.loc[:, 'weight']
         y_batch = df.loc[:, 'sample']
@@ -471,7 +471,7 @@ class GAN(object):
       for i in range(0, int(N/self.n_batch)):
         r = rows[i*self.n_batch : (i+1)*self.n_batch]
         r = sorted(r)
-        df = self.file.select('df', where = r)
+        df = self.file.select('df', where = 'index = r')
         x_batch = df.drop(['weight', 'sample', 'syst'], axis = 1)
         x_batch_w = df.loc[:, 'weight']
         y_batch = df.loc[:, 'sample']
