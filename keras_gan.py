@@ -32,6 +32,7 @@ import keras as K
 from utils import LayerNormalization
 
 def smoothen(y):
+  return y
   N = 10
   box = np.ones(N)/float(N)
   return np.convolve(y, box, mode = 'same')
@@ -92,7 +93,7 @@ class GAN(object):
     self.n_eval = n_eval
     self.no_adv = no_adv
     self.adv = None
-    self.discriminator = None
+    self.disc = None
 
   '''
     Create adv. network.
@@ -100,52 +101,52 @@ class GAN(object):
   def create_adv(self):
     self.adv_input = Input(shape = (1,), name = 'adv_input')
     xc = self.adv_input
-    xc = Dense(200, activation = None, name = "adv_0")(xc)
+    xc = Dense(200, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = Dense(100, activation = None, name = "adv_1")(xc)
-    xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = LayerNormalization()(xc)
-    xc = Dense(50, activation = None, name = "adv_2")(xc)
+    xc = Dense(100, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = LayerNormalization()(xc)
-    xc = Dense(40, activation = None, name = "adv_3")(xc)
+    xc = Dense(50, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = LayerNormalization()(xc)
-    xc = Dense(10, activation = None, name = "adv_4")(xc)
+    xc = Dense(40, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = Dense(3, activation = 'softmax', name = "adv_7")(xc)
+    xc = LayerNormalization()(xc)
+    xc = Dense(10, activation = None)(xc)
+    xc = K.layers.LeakyReLU(0.2)(xc)
+    xc = Dense(3, activation = 'softmax')(xc)
     self.adv = Model(self.adv_input, xc, name = "adv")
     self.adv.trainable = True
-    self.adv.compile(loss = K.losses.binary_crossentropy,
-                        optimizer = Adam(lr = 1e-3), metrics = [])
+    #self.adv.compile(loss = K.losses.categorical_crossentropy,
+    #                    optimizer = Adam(lr = 1e-3), metrics = [])
 
   '''
   Create discriminator network.
   '''
-  def create_discriminator(self):
-    self.discriminator_input = Input(shape = (self.n_dimensions,), name = 'discriminator_input')
+  def create_disc(self):
+    self.disc_input = Input(shape = (self.n_dimensions,), name = 'disc_input')
 
-    xd = self.discriminator_input
-    xd = Dense(200, activation = None, name = "discriminator_1")(xd)
+    xd = self.disc_input
+    xd = Dense(200, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = Dense(100, activation = None, name = "discriminator_2")(xd)
-    xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = LayerNormalization()(xd)
-    xd = Dense(50, activation = None, name = "discriminator_4")(xd)
+    xd = Dense(100, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = LayerNormalization()(xd)
-    xd = Dense(40, activation = None, name = "discriminator_5")(xd)
+    xd = Dense(50, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = LayerNormalization()(xd)
-    xd = Dense(30, activation = None, name = "discriminator_6")(xd)
+    xd = Dense(40, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = LayerNormalization()(xd)
-    xd = Dense(20, activation = None, name = "discriminator_7")(xd)
+    xd = Dense(30, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = Dense(1, activation = 'sigmoid', name = "discriminator_8")(xd)
-    self.discriminator = Model(self.discriminator_input, xd, name = "discriminator")
-    self.discriminator.trainable = True
-    self.discriminator.compile(loss = K.losses.binary_crossentropy, optimizer = Adam(lr = 1e-3), metrics = [])
+    xd = LayerNormalization()(xd)
+    xd = Dense(20, activation = None)(xd)
+    xd = K.layers.LeakyReLU(0.2)(xd)
+    xd = Dense(1, activation = 'sigmoid')(xd)
+    self.disc = Model(self.disc_input, xd, name = "disc")
+    self.disc.trainable = True
+    self.disc.compile(loss = K.losses.binary_crossentropy, optimizer = Adam(lr = 1e-3), metrics = [])
 
   '''
   Create all networks.
@@ -153,29 +154,27 @@ class GAN(object):
   def create_networks(self):
     if not self.adv:
       self.create_adv()
-    if not self.discriminator:
-      self.create_discriminator()
+    if not self.disc:
+      self.create_disc()
 
-    self.discriminator.trainable = False
+    self.disc.trainable = False
     self.adv.trainable = True
 
     self.nominal_input = Input(shape = (self.n_dimensions,), name = 'nominal_input')
     self.syst_input = Input(shape = (self.n_dimensions,), name = 'syst_input')
 
-    from functools import partial
-
     self.disc_fixed_adv = Model([self.nominal_input, self.syst_input],
-                                [self.adv(self.discriminator(self.nominal_input)), self.adv(self.discriminator(self.syst_input))],
+                                [self.adv(self.disc(self.nominal_input)), self.adv(self.disc(self.syst_input))],
                                 name = "disc_fixed_adv")
     self.disc_fixed_adv.compile(loss = [K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
                                 loss_weights = [self.lambda_decorr, self.lambda_decorr],
                                 #optimizer = RMSprop(lr = 1e-4), metrics = [])
                                 optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
-    self.discriminator.trainable = True
+    self.disc.trainable = True
     self.adv.trainable = False
-    self.disc_adv_fixed = Model([self.discriminator_input, self.nominal_input, self.syst_input],
-                                [self.discriminator(self.discriminator_input), self.adv(self.discriminator(self.nominal_input)), self.adv(self.discriminator(self.syst_input))],
+    self.disc_adv_fixed = Model([self.disc_input, self.nominal_input, self.syst_input],
+                                [self.disc(self.disc_input), self.adv(self.disc(self.nominal_input)), self.adv(self.disc(self.syst_input))],
                                 name = "disc_adv_fixed")
     self.disc_adv_fixed.compile(loss = [K.losses.binary_crossentropy, K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
                                    loss_weights = [1.0, -self.lambda_decorr, -self.lambda_decorr],
@@ -184,17 +183,17 @@ class GAN(object):
 
 
     print("Signal/background discriminator:")
-    self.discriminator.trainable = True
-    self.discriminator.summary()
+    self.disc.trainable = True
+    self.disc.summary()
     print("Adv.:")
     self.adv.trainable = True
     self.adv.summary()
     print("Disc. against adv.:")
-    self.discriminator.trainable = True
+    self.disc.trainable = True
     self.adv.trainable = False
     self.disc_adv_fixed.summary()
     print("Adv. against disc.:")
-    self.discriminator.trainable = False
+    self.disc.trainable = False
     self.adv.trainable = True
     self.disc_fixed_adv.summary()
 
@@ -291,10 +290,10 @@ class GAN(object):
     import matplotlib.pyplot as plt
     import seaborn as sns
     out_signal = []
-    for x,w,y in self.get_batch(origin = 'test', signal = True): out_signal.extend(self.discriminator.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = True): out_signal.extend(self.disc.predict(x))
     out_signal = np.array(out_signal)
     out_bkg = []
-    for x,w,y in self.get_batch(origin = 'test', signal = False): out_bkg.extend(self.discriminator.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = False): out_bkg.extend(self.disc.predict(x))
     out_bkg = np.array(out_bkg)
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111)
@@ -315,17 +314,17 @@ class GAN(object):
     import seaborn as sns
 
     out_signal = []
-    for x,w,y in self.get_batch(origin = 'test', signal = True, syst = False): out_signal.extend(self.discriminator.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = True, syst = False): out_signal.extend(self.disc.predict(x))
     out_signal = np.array(out_signal)
     out_bkg = []
-    for x,w,y in self.get_batch(origin = 'test', signal = False, syst = False): out_bkg.extend(self.discriminator.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = False, syst = False): out_bkg.extend(self.disc.predict(x))
     out_bkg = np.array(out_bkg)
 
     out_signal_s = []
-    for x,w,y in self.get_batch(origin = 'test', signal = True, syst = True): out_signal_s.extend(self.discriminator.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = True, syst = True): out_signal_s.extend(self.disc.predict(x))
     out_signal_s = np.array(out_signal_s)
     out_bkg_s = []
-    for x,w,y in self.get_batch(origin = 'test', signal = False, syst = True): out_bkg_s.extend(self.discriminator.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = False, syst = True): out_bkg_s.extend(self.disc.predict(x))
     out_bkg_s = np.array(out_bkg_s)
 
     Nbins = 20
@@ -410,10 +409,10 @@ class GAN(object):
     import seaborn as sns
     # use get_continuour_batch to read directly from the file
     out_syst_nominal = []
-    for x,w,y in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.adv.predict(self.discriminator.predict(x)))
+    for x,w,y,s in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.adv.predict(self.disc.predict(x)))
     out_syst_nominal = np.array(out_syst_nominal)
     out_syst_var = []
-    for x,w,y in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.adv.predict(self.discriminator.predict(x)))
+    for x,w,y,s in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.adv.predict(self.disc.predict(x)))
     out_syst_var = np.array(out_syst_var)
     bins = np.linspace(np.amin(out_syst_nominal), np.amax(out_syst_nominal), 10)
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -451,7 +450,8 @@ class GAN(object):
       x_batch = self.file[origin][r, self.col_data:]
       x_batch_w = self.file[origin][r, self.col_weight]
       y_batch = self.file[origin][r, self.col_signal]
-      yield x_batch, x_batch_w, y_batch
+      s_batch = self.file[origin][r, self.col_syst]
+      yield x_batch, x_batch_w, y_batch, s_batch
 
   def get_batch_train(self, syst):
     if not syst:
@@ -480,27 +480,21 @@ class GAN(object):
     self.adv_loss_nom_train = np.array([])
     self.adv_loss_sys_train = np.array([])
     self.disc_loss_train = np.array([])
-    nominal = np.zeros( (self.n_batch, 3) )
-    syst_up = np.zeros( (self.n_batch, 3) )
-    syst_dw = np.zeros( (self.n_batch, 3) )
-    nominal[:,1] = 1.0
-    syst_up[:,0] = 1.0
-    syst_dw[:,2] = 1.0
     positive_y = np.ones(self.n_batch)
     zero_y = np.zeros(self.n_batch)
     negative_y = np.ones(self.n_batch)*(-1)
     for epoch in range(self.n_iteration):
       if self.no_adv:
-        x_batch_nom, x_batch_nom_w, y_batch_nom = self.get_batch_train(syst = False)
-        self.discriminator.trainable = True
-        self.discriminator.train_on_batch(x_batch_nom, y_batch_nom, sample_weight = x_batch_nom_w)
+        x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(self.get_batch(origin = 'train', syst = False))
+        self.disc.trainable = True
+        self.disc.train_on_batch(x_batch_nom, y_batch_nom, sample_weight = x_batch_nom_w)
 
       if not self.no_adv:
         # step 0 - pretraining
         if epoch < self.n_pretrain:
-          x_batch_nom, x_batch_nom_w, y_batch_nom = self.get_batch_train(syst = False)
-          self.discriminator.trainable = True
-          self.discriminator.train_on_batch(x_batch_nom, y_batch_nom, sample_weight = x_batch_nom_w) # reconstruct input in auto-encoder
+          x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(self.get_batch(origin = 'train', syst = False))
+          self.disc.trainable = True
+          self.disc.train_on_batch(x_batch_nom, y_batch_nom, sample_weight = x_batch_nom_w)
 
         if epoch >= self.n_pretrain:
           # step adv.
@@ -508,20 +502,24 @@ class GAN(object):
           if epoch < 2*self.n_pretrain:
             n_adv = 5*self.n_adv
           for k in range(0, n_adv):
-            x_batch_nom, x_batch_nom_w, y_batch_nom = self.get_batch_train(syst = False)
-            x_batch_syst, x_batch_syst_w, y_batch_syst = self.get_batch_train(syst = True)
+            x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(self.get_batch(origin = 'train', syst = False))
+            x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(self.get_batch(origin = 'train', syst = True))
+            nominal = np.eye(3)[s_batch_nom.astype(int), :]
+            syst_up = np.eye(3)[s_batch_syst.astype(int), :]
 
-            self.discriminator.trainable = False
+            self.disc.trainable = False
             self.adv.trainable = True
             self.disc_fixed_adv.train_on_batch([x_batch_nom, x_batch_syst],
                                                [nominal, syst_up],
                                                sample_weight = [x_batch_nom_w, x_batch_syst_w])
 
           # step generator
-          x_batch_nom, x_batch_nom_w, y_batch_nom = self.get_batch_train(syst = False)
-          x_batch_syst, x_batch_syst_w, y_batch_syst = self.get_batch_train(syst = True)
+          x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(self.get_batch(origin = 'train', syst = False))
+          x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(self.get_batch(origin = 'train', syst = True))
+          nominal = np.eye(3)[s_batch_nom.astype(int), :]
+          syst_up = np.eye(3)[s_batch_syst.astype(int), :]
 
-          self.discriminator.trainable = True
+          self.disc.trainable = True
           self.adv.trainable = False
           self.disc_adv_fixed.train_on_batch([x_batch_nom, x_batch_nom, x_batch_syst],
                                              [y_batch_nom, nominal, syst_up],
@@ -533,7 +531,7 @@ class GAN(object):
         adv_metric_syst = 0
         c = 0.0
         for x,w,y in self.get_batch(origin = 'test', syst = False):
-          disc_metric += self.discriminator.evaluate(x, y, sample_weight = w, verbose = 0)
+          disc_metric += self.disc.evaluate(x, y, sample_weight = w, verbose = 0)
           if epoch >= self.n_pretrain and not self.no_adv:
             adv_metric_nom += self.adv.evaluate(self.discriminator.predict(x, verbose = 0), nominal, sample_weight = w, verbose = 0)
           c += 1.0
@@ -578,13 +576,9 @@ class GAN(object):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(10, 8))
     it = np.arange(0, self.n_iteration, self.n_eval)
-    plt.plot(it, (self.disc_loss_train), linestyle = ':', color = 'r')
-    plt.plot(it, (np.fabs(-self.lambda_decorr*self.adv_loss_train)), linestyle = ':', color = 'b')
-    plt.plot(it, (np.abs(self.disc_loss_train - self.lambda_decorr*np.abs(self.adv_loss_train))), linestyle = ':', color = 'k')
-
-    plt.plot(it, smoothen(self.disc_loss_train), linestyle = '-', color = 'r', label = r'$\mathcal{L}_{\mathrm{disc}}$')
-    plt.plot(it, smoothen(np.fabs(-self.lambda_decorr*self.adv_loss_train)), linestyle = '-', color = 'b', label = r' | $\lambda_{\mathrm{decorr}} \mathcal{L}_{\mathrm{adv}} |$')
-    plt.plot(it, smoothen(np.abs(self.disc_loss_train - self.lambda_decorr*np.abs(self.adv_loss_train))), linestyle = '-', color = 'k', label = r'$\mathcal{L}_{\mathrm{disc}} - \lambda_{\mathrm{decorr}} |\mathcal{L}_{\mathrm{adv}}$|')
+    plt.plot(it, (self.disc_loss_train), linestyle = '-', color = 'r', label = r'$\mathcal{L}_{\mathrm{disc}}$')
+    plt.plot(it, (np.fabs(-self.lambda_decorr*self.adv_loss_train)), linestyle = '-', color = 'b', label = r' | $\lambda_{\mathrm{decorr}} \mathcal{L}_{\mathrm{adv}} |$')
+    plt.plot(it, (np.abs(self.disc_loss_train - self.lambda_decorr*np.abs(self.adv_loss_train))), linestyle = '-', color = 'k', label = r'$\mathcal{L}_{\mathrm{disc}} - \lambda_{\mathrm{decorr}} |\mathcal{L}_{\mathrm{adv}}$|')
     plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
     plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of adv bootstrap')
     if nnTaken > 0:
@@ -600,10 +594,8 @@ class GAN(object):
     fac = 1.0
     if np.max(np.abs(self.adv_loss_nom_train)) > 0:
       fac /= np.max(np.abs(self.adv_loss_nom_train))
-    plt.plot(it, (fac*self.adv_loss_nom_train), linestyle = ':', color = 'g')
-    plt.plot(it, (-fac*self.adv_loss_sys_train), linestyle = ':', color = 'c')
-    plt.plot(it, smoothen(fac*self.adv_loss_nom_train), linestyle = '-', color = 'g', label = r' $ %4.2f \mathcal{L}_{\mathrm{adv,nom}}$' % (fac) )
-    plt.plot(it, smoothen(-fac*self.adv_loss_sys_train), linestyle = '-', color = 'c', label = r' $ %4.2f \mathcal{L}_{\mathrm{adv,sys}}$' % (-fac) )
+    plt.plot(it, (fac*self.adv_loss_nom_train), linestyle = '-', color = 'g', label = r' $ %4.2f \mathcal{L}_{\mathrm{adv,nom}}$' % (fac) )
+    plt.plot(it, (-fac*self.adv_loss_sys_train), linestyle = '-', color = 'c', label = r' $ %4.2f \mathcal{L}_{\mathrm{adv,sys}}$' % (-fac) )
     plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
     plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of adv bootstrap')
     if nnTaken > 0:
@@ -621,20 +613,20 @@ class GAN(object):
       json_file.write(adv_json)
     self.adv.save_weights("%s.h5" % adv_filename)
 
-    discriminator_json = self.discriminator.to_json()
-    with open("%s.json" % discriminator_filename, "w") as json_file:
-      json_file.write(discriminator_json)
-    self.discriminator.save_weights("%s.h5" % discriminator_filename)
+    disc_json = self.disc.to_json()
+    with open("%s.json" % disc_filename, "w") as json_file:
+      json_file.write(disc_json)
+    self.disc.save_weights("%s.h5" % disc_filename)
 
   '''
   Load stored network
   '''
   def load(self, discriminator_filename, adv_filename):
-    json_file = open('%s.json' % discriminator_filename, 'r')
+    json_file = open('%s.json' % disc_filename, 'r')
     loaded_model_json = json_file.read()
     json_file.close()
-    self.discriminator = K.models.model_from_json(loaded_model_json, custom_objects={'LayerNormalization': LayerNormalization})
-    self.discriminator.load_weights("%s.h5" % discriminator_filename)
+    self.disc = K.models.model_from_json(loaded_model_json, custom_objects={'LayerNormalization': LayerNormalization})
+    self.disc.load_weights("%s.h5" % disc_filename)
 
     json_file = open('%s.json' % adv_filename, 'r')
     loaded_model_json = json_file.read()
@@ -643,10 +635,10 @@ class GAN(object):
     self.adv.load_weights("%s.h5" % adv_filename)
 
     self.adv_input = K.layers.Input(shape = (1,), name = 'adv_input')
-    self.discriminator_input = K.layers.Input(shape = (self.n_dimensions,), name = 'discriminator_input')
+    self.disc_input = K.layers.Input(shape = (self.n_dimensions,), name = 'disc_input')
 
     self.discriminator.compile(loss = K.losses.binary_crossentropy, optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
-    self.adv.compile(loss = K.losses.binary_crossentropy,
+    self.adv.compile(loss = K.losses.categorical_crossentropy,
                         optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
     self.create_networks()
 
