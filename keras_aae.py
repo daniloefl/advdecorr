@@ -225,6 +225,9 @@ class AAE(object):
     self.ae = Model([self.any_input],
                     [self.dec(self.any_latent)],
                      name = 'ae')
+    self.ae.compile(loss = [K.losses.mean_squared_error],
+                    loss_weights = [1.0],
+                    optimizer = K.optimizers.Adam(lr = 1e-4), metrics = [])
 
     self.enc.trainable = True
     self.dec.trainable = True
