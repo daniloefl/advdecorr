@@ -543,7 +543,7 @@ class GAN(object):
           adv_metric_nom += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), np.eye(3)[s.astype(int),:], sample_weight = w.values, verbose = 0)
         if epoch >= self.n_pretrain and not self.no_adv:
           x,w,y,s = next(iter_test_sys)
-          adv_metric_syst += self.adv.evaluate(self.disc.predict(x_s.values, verbose = 0), np.eye(3)[s_s.astype(int),:], sample_weight = w_s.values, verbose = 0)
+          adv_metric_syst += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), np.eye(3)[s.astype(int),:], sample_weight = w.values, verbose = 0)
         adv_metric = adv_metric_nom + adv_metric_syst
         if adv_metric == 0: adv_metric = 1e-20
 
