@@ -635,7 +635,7 @@ class GAN(object):
     self.adv_input = K.layers.Input(shape = (1,), name = 'adv_input')
     self.disc_input = K.layers.Input(shape = (self.n_dimensions,), name = 'disc_input')
 
-    self.discriminator.compile(loss = K.losses.binary_crossentropy, optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
+    self.disc.compile(loss = K.losses.binary_crossentropy, optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
     self.adv.compile(loss = K.losses.categorical_crossentropy,
                         optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
     self.create_networks()
