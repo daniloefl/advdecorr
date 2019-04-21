@@ -557,7 +557,7 @@ class AAE(object):
         x_batch = np.concatenate([x_batch_nom, x_batch_syst], axis = 0)
         x_batch_w = np.concatenate([x_batch_nom_w, x_batch_syst_w], axis = 0)
         nom_sys = np.concatenate([s_batch_nom, s_batch_syst], axis = 0)
-        s_batch = np.eye(3)[nom_sys,:]
+        s_batch = np.eye(3)[nom_sys.astype(int),:]
 
         self.enc.trainable = True
         self.aae.train_on_batch([x_batch],
@@ -571,7 +571,7 @@ class AAE(object):
 
       if epoch % self.n_eval == 0:
         x,w,y,s = next(self.get_batch(origin = 'test'))
-        s_eye = np.eye(3)[s,:]
+        s_eye = np.eye(3)[s.astype(int),:]
         tmp, rec_metric, adv_metric = self.aae.evaluate(x, [x, s_eye], sample_weight = w, verbose = 0)
         disc_metric = self.enc_disc.evaluate(x, y, sample_weight = w, verbose = 0)
 
