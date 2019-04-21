@@ -348,17 +348,20 @@ class AAE(object):
 
     for t in ['train', 'test']:
       if t == 'train':
-        bkg = pd.DataFrame( ((df['sample'] == 0) & (df.index < 2*N)))
-        sig = pd.DataFrame( ((df['sample'] == 1) & (df.index < 2*N)))
-        syst = pd.DataFrame( ((df['syst'] == 1) & (df.index < 2*N)))
-        nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index < 2*N)))
+        part = pd.DataFrame( (df.index < 4*N) )
+        bkg = pd.DataFrame( ((df['sample'] == 0) & (df.index < 4*N)))
+        sig = pd.DataFrame( ((df['sample'] == 1) & (df.index < 4*N)))
+        syst = pd.DataFrame( ((df['syst'] == 1) & (df.index < 4*N)))
+        nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index < 4*N)))
       else:
-        bkg = pd.DataFrame( ((df['sample'] == 0) & (df.index >= 2*N)))
-        sig = pd.DataFrame( ((df['sample'] == 1) & (df.index >= 2*N)))
-        syst = pd.DataFrame( ((df['syst'] == 1) & (df.index >= 2*N)))
-        nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index >= 2*N)))
+        part = pd.DataFrame( (df.index >= 4*N) )
+        bkg = pd.DataFrame( ((df['sample'] == 0) & (df.index >= 4*N)))
+        sig = pd.DataFrame( ((df['sample'] == 1) & (df.index >= 4*N)))
+        syst = pd.DataFrame( ((df['syst'] == 1) & (df.index >= 4*N)))
+        nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index >= 4*N)))
+      self.file.put('%s' % t, part, format = 'table')
       self.file.put('%s_bkg' % t, bkg, format = 'table')
-      self.file.put('%s_sig' % t, sig, format = 'table')
+      self.file.put('%s_sig'% t, sig, format = 'table')
       self.file.put('%s_syst' % t, syst, format = 'table')
       self.file.put('%s_nominal' % t, nominal, format = 'table')
 
