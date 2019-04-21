@@ -607,7 +607,7 @@ class GAN(object):
     plt.savefig(filename_adv)
     plt.close(fig)
   
-  def save(self, discriminator_filename, adv_filename):
+  def save(self, disc_filename, adv_filename):
     adv_json = self.adv.to_json()
     with open("%s.json" % adv_filename, "w") as json_file:
       json_file.write(adv_json)
@@ -621,7 +621,7 @@ class GAN(object):
   '''
   Load stored network
   '''
-  def load(self, discriminator_filename, adv_filename):
+  def load(self, disc_filename, adv_filename):
     json_file = open('%s.json' % disc_filename, 'r')
     loaded_model_json = json_file.read()
     json_file.close()
