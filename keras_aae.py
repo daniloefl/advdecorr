@@ -225,6 +225,10 @@ class AAE(object):
     self.ae = Model([self.any_input],
                     [self.dec(self.any_latent)],
                      name = 'ae')
+
+    self.enc.trainable = True
+    self.dec.trainable = True
+    self.adv.trainable = False
     self.aae = Model([self.any_input, self.nom_input, self.sys_input],
                      [self.dec(self.any_latent), self.adv(self.nom_latent), self.adv(self.sys_latent)],
                      name = 'aae')
@@ -233,35 +237,80 @@ class AAE(object):
                      optimizer = K.optimizers.Adam(lr = 1e-4), metrics = [])
 
     self.enc.trainable = False
+    self.dec.trainable = False
+    self.adv.trainable = True
+    self.ae_fixed_adv = Model([self.nom_input, self.sys_input],
+                              [self.adv(self.nom_latent), self.adv(self.sys_latent)],
+                              name = 'ae_fixed_adv')
+    self.ae_fixed_adv.compile(loss = [K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
+                              loss_weights = [self.lambda_decorr, self.lambda_decorr],
+                              optimizer = K.optimizers.Adam(lr = 1e-4), metrics = [])
+
+    self.enc.trainable = False
+    self.disc.trainable = True
     self.enc_disc = Model([self.any_input],
                           [self.disc(self.any_latent)],
                           name = 'enc_disc')
     self.enc_disc.compile(loss = [K.losses.binary_crossentropy],
                           loss_weights = [1.0],
                           optimizer = K.optimizers.Adam(lr = 1e-4), metrics = [])
+
+    self.enc.trainable = False
+    self.adv.trainable = True
     self.enc_adv = Model([self.any_input],
                           [self.adv(self.any_latent)],
                           name = 'enc_adv')
 
     self.enc.trainable = True
+    self.dec.trainable = True
+    self.disc.trainable = True
+    self.adv.trainable = True
+
     print("Signal/background discriminator:")
+    self.disc.trainable = True
     self.disc.summary()
+
     print("Adv.:")
+    self.adv.trainable = True
     self.adv.summary()
+
     print("Encoder:")
+    self.enc.trainable = True
     self.enc.summary()
     print("Decoder:")
+    self.dec.trainable = True
     self.dec.summary()
     print("AE:")
+    self.enc.trainable = True
+    self.dec.trainable = True
     self.ae.summary()
+
     print("AAE:")
+    self.enc.trainable = True
+    self.dec.trainable = True
+    self.adv.trainable = False
     self.aae.summary()
+
+    print("AE vs. adv.:")
+    self.enc.trainable = False
+    self.dec.trainable = False
+    self.adv.trainable = True
+    self.ae_fixed_adv.summary()
+
     print("Enc.-disc.:")
     self.enc.trainable = False
+    self.disc.trainable = True
     self.enc_disc.summary()
+
     print("Enc.-adv.:")
+    self.enc.trainable = False
+    self.adv.trainable = True
     self.enc_adv.summary()
+
     self.enc.trainable = True
+    self.dec.trainable = True
+    self.disc.trainable = True
+    self.adv.trainable = True
 
   '''
   '''
@@ -545,9 +594,6 @@ class AAE(object):
     self.adv_loss_nom_train = np.array([])
     self.adv_loss_sys_train = np.array([])
     self.disc_loss_train = np.array([])
-    positive_y = np.ones(self.n_batch)
-    zero_y = np.zeros(self.n_batch)
-    negative_y = np.ones(self.n_batch)*(-1)
     iter_nom = self.get_batch(origin = 'train', syst = False, noStop = True)
     iter_sys = self.get_batch(origin = 'train', syst = True, noStop = True)
     iter_test_nom = self.get_batch(origin = 'test', syst = False, noStop = True)
@@ -556,18 +602,31 @@ class AAE(object):
       if self.no_adv:
         x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
         self.enc.trainable = True
+        self.dec.trainable = True
         self.ae.train_on_batch(x_batch_nom, x_batch_nom, sample_weight = x_batch_nom_w)
 
       if not self.no_adv:
         x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
         x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(iter_sys)
 
+        # step AE
         self.enc.trainable = True
+        self.dec.trainable = True
+        self.adv.trainable = False
         self.aae.train_on_batch([x_batch_nom, x_batch_nom, x_batch_syst],
                                 [x_batch_nom, np.eye(3)[s_batch_nom.astype(int), :], np.eye(3)[s_batch_syst.astype(int), :]],
                                 sample_weight = [x_batch_nom_w, x_batch_nom_w, x_batch_syst_w])
-
+        # step adv.
         self.enc.trainable = False
+        self.dec.trainable = False
+        self.adv.trainable = True
+        self.ae_fixed_adv.train_on_batch([x_batch_nom, x_batch_syst],
+                                         [np.eye(3)[s_batch_nom.astype(int), :], np.eye(3)[s_batch_syst.astype(int), :]],
+                                         sample_weight = [x_batch_nom_w, x_batch_syst_w])
+
+        # step discriminator
+        self.enc.trainable = False
+        self.disc.trainable = True
         self.enc_disc.train_on_batch([x_batch_nom],
                                      [y_batch_nom],
                                      sample_weight = [x_batch_nom_w])
