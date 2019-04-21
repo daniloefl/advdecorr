@@ -572,7 +572,7 @@ class AAE(object):
       if epoch % self.n_eval == 0:
         x,w,y,s = next(self.get_batch(origin = 'test'))
         s_eye = np.eye(3)[s.astype(int),:]
-        tmp, rec_metric, adv_metric = self.aae.evaluate(x, [x, s_eye], sample_weight = w, verbose = 0)
+        tmp, rec_metric, adv_metric = self.aae.evaluate(x, [x, s_eye], sample_weight = [w, w], verbose = 0)
         disc_metric = self.enc_disc.evaluate(x, y, sample_weight = w, verbose = 0)
 
         self.rec_loss_train = np.append(self.rec_loss_train, [rec_metric])
