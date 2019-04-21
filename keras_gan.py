@@ -530,7 +530,7 @@ class GAN(object):
         adv_metric_nom = 0
         adv_metric_syst = 0
         c = 0.0
-        for x,w,y in self.get_batch(origin = 'test', syst = False):
+        for x,w,y,s in self.get_batch(origin = 'test', syst = False):
           disc_metric += self.disc.evaluate(x, y, sample_weight = w, verbose = 0)
           if epoch >= self.n_pretrain and not self.no_adv:
             adv_metric_nom += self.adv.evaluate(self.discriminator.predict(x, verbose = 0), nominal, sample_weight = w, verbose = 0)
@@ -539,7 +539,7 @@ class GAN(object):
         adv_metric_nom /= c
         if epoch >= self.n_pretrain and not self.no_adv:
           c = 0.0
-          for x_s,w_s,y_s in self.get_batch(origin = 'test', syst = True):
+          for x_s,w_s,y_s,s_s in self.get_batch(origin = 'test', syst = True):
             adv_metric_syst += self.adv.evaluate(self.discriminator.predict(x_s, verbose = 0), syst_up, sample_weight = w_s, verbose = 0)
             c += 1.0
           adv_metric_syst /= c
