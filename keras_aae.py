@@ -142,7 +142,7 @@ class AAE(object):
     xd = LayerNormalization()(xd)
     xd = Dense(20, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = Dense(self.n_latent, activation = 'None')(xd)
+    xd = Dense(self.n_latent, activation = None)(xd)
     self.enc = Model(self.enc_input, xd, name = "enc")
     self.enc.trainable = True
     #self.enc.compile(loss = K.losses.mean_squared_error, optimizer = Adam(lr = 1e-3), metrics = [])
@@ -167,7 +167,7 @@ class AAE(object):
     xd = LayerNormalization()(xd)
     xd = Dense(20, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = Dense(self.n_dimensions, activation = 'None')(xd)
+    xd = Dense(self.n_dimensions, activation = None)(xd)
     self.dec = Model(self.dec_input, xd, name = "dec")
     self.dec.trainable = True
     #self.enc.compile(loss = K.losses.mean_squared_error, optimizer = Adam(lr = 1e-3), metrics = [])
@@ -211,7 +211,7 @@ class AAE(object):
 
     self.enc.trainable = True
     self.dec.trainable = True
-    self.dis.trainable = True
+    self.disc.trainable = True
     self.adv.trainable = True
 
     self.any_input = Input(shape = (self.n_dimensions,), name = 'any_input')
@@ -230,7 +230,7 @@ class AAE(object):
 
     self.enc.trainable = False
     self.enc_disc = Model([self.any_input],
-                          [self.dis(self.latent)],
+                          [self.disc(self.latent)],
                           name = 'enc_disc')
     self.enc_disc.compile(loss = [K.losses.binary_crossentropy],
                           loss_weights = [1.0],
@@ -351,10 +351,10 @@ class AAE(object):
     import matplotlib.pyplot as plt
     import seaborn as sns
     out_signal = []
-    for x,w,y in self.get_batch(origin = 'test', signal = True): out_signal.extend(self.enc_disc.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = True): out_signal.extend(self.enc_disc.predict(x))
     out_signal = np.array(out_signal)
     out_bkg = []
-    for x,w,y in self.get_batch(origin = 'test', signal = False): out_bkg.extend(self.enc_disc.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = False): out_bkg.extend(self.enc_disc.predict(x))
     out_bkg = np.array(out_bkg)
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111)
@@ -375,17 +375,17 @@ class AAE(object):
     import seaborn as sns
 
     out_signal = []
-    for x,w,y in self.get_batch(origin = 'test', signal = True, syst = False): out_signal.extend(self.enc_disc.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = True, syst = False): out_signal.extend(self.enc_disc.predict(x))
     out_signal = np.array(out_signal)
     out_bkg = []
-    for x,w,y in self.get_batch(origin = 'test', signal = False, syst = False): out_bkg.extend(self.enc_disc.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = False, syst = False): out_bkg.extend(self.enc_disc.predict(x))
     out_bkg = np.array(out_bkg)
 
     out_signal_s = []
-    for x,w,y in self.get_batch(origin = 'test', signal = True, syst = True): out_signal_s.extend(self.enc_disc.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = True, syst = True): out_signal_s.extend(self.enc_disc.predict(x))
     out_signal_s = np.array(out_signal_s)
     out_bkg_s = []
-    for x,w,y in self.get_batch(origin = 'test', signal = False, syst = True): out_bkg_s.extend(self.enc_disc.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = False, syst = True): out_bkg_s.extend(self.enc_disc.predict(x))
     out_bkg_s = np.array(out_bkg_s)
 
     Nbins = 20
@@ -470,10 +470,10 @@ class AAE(object):
     import seaborn as sns
     # use get_continuour_batch to read directly from the file
     out_syst_nominal = []
-    for x,w,y in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.enc_adv.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.enc_adv.predict(x))
     out_syst_nominal = np.array(out_syst_nominal)
     out_syst_var = []
-    for x,w,y in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.enc_adv.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.enc_adv.predict(x))
     out_syst_var = np.array(out_syst_var)
     bins = np.linspace(np.amin(out_syst_nominal), np.amax(out_syst_nominal), 10)
     fig, ax = plt.subplots(figsize=(10, 8))
