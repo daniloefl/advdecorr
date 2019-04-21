@@ -51,7 +51,8 @@ def transformROOTToPandas(treeNameList = ["Nominal",
   # 'diJetVBFM', 'diJetVBFPt', 'diJetVBFDR', 'diJetVBFDEta',
    ]
 
-  dfList = {}
+  hdf = pd.HDFStore('input.h5', 'w')
+  Nrows = 0
   for treeName in treeNameList:
     t[treeName] = {}
     ptDrop = False
@@ -63,10 +64,11 @@ def transformROOTToPandas(treeNameList = ["Nominal",
       t[treeName][k] = f[k].Get(nn)
 
     # sample specifies if it is signal or background
-    Nrows = (t[treeName]["bkg"].GetEntries()+t[treeName]["sig"].GetEntries())
-    df = pd.DataFrame(np.zeros((Nrows, len(listBranches)+3), dtype = np.float32), columns=listBranches+["EventWeight", "sample", "EventNumber"])
+    Nrows += (t[treeName]["bkg"].GetEntries()+t[treeName]["sig"].GetEntries())
 
-    idx = 0
+  df = pd.DataFrame(np.zeros((Nrows, len(listBranches)+2), dtype = np.float32), columns = ['sample', 'syst', 'weight']+listBranches)
+  idx = 0
+  for treeName in treeNameList:
     for sample in range(0, 2): # signal and bkg
       if sample == 0: sampleName = "bkg"
       else: sampleName = "sig"
@@ -93,17 +95,33 @@ def transformROOTToPandas(treeNameList = ["Nominal",
           if r > prob:
             continue
 
-        df.loc[idx] = [0]*(len(listBranches)+3)
-        for br in listBranches:
-          df.loc[idx,br] = getattr(t[treeName][sampleName], br)
-        df.loc[idx,"sample"] = sample # 0 for bkg, 1 for signal
-        df.loc[idx,"EventWeight"] = t[treeName][sampleName].EventWeight
-        df.loc[idx,"EventNumber"] = t[treeName][sampleName].EventNumber
+        for br in range(0, len(listBranches)):
+          df.loc[idx, listBranches[br]] = getattr(t[treeName][sampleName], listBranches[br])
+        df.loc[idx, 'sample'] = sample # 0 for bkg, 1 for signal
+        df.loc[idx, 'syst'] = float(treeName != 'Nominal') # 0 for nominal, 1 for syst
+        df.loc[idx, 'weight'] = t[treeName][sampleName].EventWeight
         idx += 1
     if idx < Nrows:
       df = df[0:idx]
-    dfList[treeName] = df
-    dfList[treeName].to_hdf("input_%s.h5" % treeName, key = "df", mode = "w") #format='table',complevel= 9,complib='blosc')
+  hdf.put('df', df, format = 'table', data_columns = True)
+  lim = int(Nrows/2)
+  train_bkg = pd.DataFrame( (df['sample'] == 0 & df.index < lim))
+  train_sig = pd.DataFrame( (df['sample'] == 1 & df.index < lim))
+  train_syst = pd.DataFrame( (df['syst'] == 1 & df.index < lim))
+  train_nominal = pd.DataFrame( (df['syst'] == 0 & df.index < lim))
+  test_bkg = pd.DataFrame( (df['sample'] == 0 & df.index >= lim))
+  test_sig = pd.DataFrame( (df['sample'] == 1 & df.index >= lim))
+  test_syst = pd.DataFrame( (df['syst'] == 1 & df.index >= lim))
+  test_nominal = pd.DataFrame( (df['syst'] == 0 & df.index >= lim))
+  hdf.put('train_bkg', train_bkg, format = 'table')
+  hdf.put('train_sig', train_sig, format = 'table')
+  hdf.put('train_syst', train_syst, format = 'table')
+  hdf.put('train_nominal', train_nominal, format = 'table')
+  hdf.put('test_bkg', test_bkg, format = 'table')
+  hdf.put('test_sig', test_sig, format = 'table')
+  hdf.put('test_syst', test_syst, format = 'table')
+  hdf.put('test_nominal', test_nominal, format = 'table')
+  hdf.close()
 
 def plotRatio(num = "slope", den = "Nominal", var = "diHiggsPt"):
   import matplotlib as mpl

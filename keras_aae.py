@@ -17,6 +17,7 @@ mpl.use('Agg')
 
 # numerical library
 import numpy as np
+import pandas as pd
 import h5py
 
 #import plaidml.keras
@@ -262,12 +263,11 @@ class AAE(object):
   '''
   '''
   def read_input_from_files(self, filename = 'input_preprocessed.h5'):
-    self.file = h5py.File(filename)
-    self.n_dimensions = self.file['train'].shape[1]-3
-    self.col_signal = 0
-    self.col_syst = 1
-    self.col_weight = 2
-    self.col_data = 3
+    self.file = pd.HDFStore(filename)
+    self.n_dimensions = self.file['df'].shape[1]-3
+    self.col_signal = self.file['df'].columns.get_loc('sample')
+    self.col_syst = self.file['df'].columns.get_loc('syst')
+    self.col_weight = self.file['df'].columns.get_loc('weight')
 
   '''
   Generate test sample.
@@ -276,10 +276,10 @@ class AAE(object):
   def prepare_input(self, filename = 'input_preprocessed.h5', adjust_signal_weights = True, set_unit_weights = True):
     # make input file
     N = 10000
-    self.file = h5py.File(filename, 'w')
+    self.file = pd.HDFStore(filename, 'w')
     x = {}
+    all_data = np.zeros(shape = (0, 3+2))
     for t in ['train', 'test']:
-      all_data = np.zeros(shape = (0, 3+2))
       for s in [0, 1]:
         signal = np.random.normal(loc = -1.0 + s*0.1, scale = 0.5 + s*0.1, size = (N, 2))
         bkg    = np.random.normal(loc =  1.0 - s*0.1, scale = 0.5 - s*0.1, size = (N, 2))
@@ -291,18 +291,24 @@ class AAE(object):
         all_data = np.concatenate((all_data, add_all_data), axis = 0)
       print('Checking nans in %s' % t)
       self.check_nans(all_data)
-      self.file.create_dataset(t, data = all_data)
-      self.file[t].attrs['columns'] = ['signal', 'syst', 'weight', '0', '1']
+    df = pd.DataFrame(all_data, columns = ['sample', 'syst', 'weight', '0', '1'])
+    self.file.put('df', df, format = 'table', data_columns = True)
 
-      signal = all_data[:, 0] == 1
-      bkg = all_data[:, 0] == 0
-      syst = all_data[:, 1] == 1
-      nominal = all_data[:, 1] == 0
-      self.file.create_dataset('%s_%s' % (t, 'bkg'), data = bkg)
-      self.file.create_dataset('%s_%s' % (t, 'signal'), data = signal)
-      self.file.create_dataset('%s_%s' % (t, 'syst'), data = syst)
-      self.file.create_dataset('%s_%s' % (t, 'nominal'), data = nominal)
-
+    for t in ['train', 'test']:
+      if t == 'train':
+        bkg = pd.DataFrame( ((df['sample'] == 0) & (df.index < 2*N)))
+        sig = pd.DataFrame( ((df['sample'] == 1) & (df.index < 2*N)))
+        syst = pd.DataFrame( ((df['syst'] == 1) & (df.index < 2*N)))
+        nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index < 2*N)))
+      else:
+        bkg = pd.DataFrame( ((df['sample'] == 0) & (df.index >= 2*N)))
+        sig = pd.DataFrame( ((df['sample'] == 1) & (df.index >= 2*N)))
+        syst = pd.DataFrame( ((df['syst'] == 1) & (df.index >= 2*N)))
+        nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index >= 2*N)))
+      self.file.put('%s_bkg' % t, bkg, format = 'table')
+      self.file.put('%s_sig' % t, sig, format = 'table')
+      self.file.put('%s_syst' % t, syst, format = 'table')
+      self.file.put('%s_nominal' % t, nominal, format = 'table')
 
     self.file.close()
 
@@ -318,8 +324,8 @@ class AAE(object):
     import matplotlib.pyplot as plt
     import seaborn as sns
 
-    nominal = self.file['test'][:, self.col_syst] == 0
-    x = self.file['test'][nominal, :][:, self.col_data:]
+    nominal = self.file['test_nominal'].iloc[:, 0]
+    x = self.file['df'].loc[nominal, :].drop(['sample', 'syst', 'weight'], axis = 1)
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111)
     sns.heatmap(np.corrcoef(x, rowvar = 0),
@@ -335,11 +341,11 @@ class AAE(object):
     import seaborn as sns
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111)
-    nominal = self.file['test'][:, self.col_syst] == 0
-    x = self.file['test'][nominal, :][:, (self.col_data+var1, self.col_data+var2)]
-    y = self.file['test'][nominal, :][:, self.col_signal]
-    g = sns.scatterplot(x = x[:, 0], y = x[:, 1], hue = y,
-                        hue_order = [0, 1], markers = ["^", "v"], legend = "brief", ax = ax)
+    nominal = self.file['test_nominal'].iloc[:, 0]
+    x = self.file['df'][nominal].loc[:, (var1, var2)]
+    y = self.file['df'][nominal].loc[:, 'sample']
+    g = sns.scatterplot(x = x.loc[:, var1], y = x.loc[:, var2], hue = y,
+                        hue_order = [var1, var2], markers = ["^", "v"], legend = "brief", ax = ax)
     #ax.legend(handles = ax.lines[::len(x)+1], labels = ["Background", "Signal"])
     g.axes.get_legend().texts[0] = "Background"
     g.axes.get_legend().texts[1] = "Signal"
@@ -489,71 +495,67 @@ class AAE(object):
     plt.close("all")
 
   def get_batch(self, origin = 'train', **kwargs):
-    filt = np.ones(self.file[origin].shape[0], dtype = 'bool')
+    filt = np.ones(self.file['df'].shape[0], dtype = 'bool')
     if 'syst' in kwargs and not kwargs['syst']:
-      filt = filt & self.file['%s_%s' % (origin, 'nominal')][:]
+      filt = filt & self.file['%s_%s' % (origin, 'nominal')].iloc[:, 0].values
     elif 'syst' in kwargs and kwargs['syst']:
-      filt = filt & self.file['%s_%s' % (origin, 'syst')][:]
+      filt = filt & self.file['%s_%s' % (origin, 'syst')].iloc[:,0].values
 
     if 'signal' in kwargs and kwargs['signal']:
-      filt = filt & self.file['%s_%s' % (origin, 'signal')][:]
+      filt = filt & self.file['%s_%s' % (origin, 'sig')].iloc[:,0].values
     elif 'signal' in kwargs and not kwargs['signal']:
-      filt = filt & self.file['%s_%s' % (origin, 'bkg')][:]
+      filt = filt & self.file['%s_%s' % (origin, 'bkg')].iloc[:,0].values
 
     filt = np.where(filt)[0]
 
     rows = np.random.permutation(filt)
     N = len(rows)
 
-    for i in range(0, int(N/self.n_batch)):
-      r = rows[i*self.n_batch : (i+1)*self.n_batch]
-      r = sorted(r)
-      x_batch = self.file[origin][r, self.col_data:]
-      x_batch_w = self.file[origin][r, self.col_weight]
-      y_batch = self.file[origin][r, self.col_signal]
-      s_batch = self.file[origin][r, self.col_syst]
-      yield x_batch, x_batch_w, y_batch, s_batch
-
-  def get_batch_train(self, syst):
-    if not syst:
-      filt = self.file['%s_%s' % ('train', 'nominal')][:]
-    else:
-      filt = self.file['%s_%s' % ('train', 'syst')][:]
-    filt = np.where(filt)[0]
-
-    rows = np.random.permutation(filt)
-    N = len(rows)
-
-    r = rows[0 : self.n_batch]
-    r = sorted(r)
-    x_batch = self.file['train'][r, self.col_data:]
-    x_batch_w = self.file['train'][r, self.col_weight]
-    y_batch = self.file['train'][r, self.col_signal]
-    s_batch = self.file['train'][r, self.col_syst]
-    return x_batch, x_batch_w, y_batch, s_batch
+    if 'noStop' in kwargs and kwargs['noStop']: # do it forever: whenever the for loop runs out, reset it
+      i = 0
+      while True:
+        r = rows[i*self.n_batch : (i+1)*self.n_batch]
+        r = sorted(r)
+        df = self.file.select('df', index = r)
+        x_batch = df.drop(['weight', 'sample', 'syst'], axis = 1)
+        x_batch_w = df.loc[:, 'weight']
+        y_batch = df.loc[:, 'sample']
+        s_batch = df.loc[:, 'syst']
+        yield x_batch, x_batch_w, y_batch, s_batch
+        i += 1
+        if i >= int(N/self.n_batch):
+          rows = np.random.permutation(filt)
+          i = 0
+    else: # do it once over the entire set
+      for i in range(0, int(N/self.n_batch)):
+        r = rows[i*self.n_batch : (i+1)*self.n_batch]
+        r = sorted(r)
+        df = self.file.select('df', where = r)
+        x_batch = df.drop(['weight', 'sample', 'syst'], axis = 1)
+        x_batch_w = df.loc[:, 'weight']
+        y_batch = df.loc[:, 'sample']
+        s_batch = df.loc[:, 'syst']
+        yield x_batch, x_batch_w, y_batch, s_batch
 
   def train(self, prefix, result_dir, network_dir):
     self.rec_loss_train = np.array([])
     self.adv_loss_train = np.array([])
     self.disc_loss_train = np.array([])
-    nominal = np.zeros( (self.n_batch, 3) )
-    syst_up = np.zeros( (self.n_batch, 3) )
-    syst_dw = np.zeros( (self.n_batch, 3) )
-    nominal[:,0] = 1.0
-    syst_up[:,1] = 1.0
-    syst_dw[:,2] = 1.0
     positive_y = np.ones(self.n_batch)
     zero_y = np.zeros(self.n_batch)
     negative_y = np.ones(self.n_batch)*(-1)
+    iter_nom = self.get_batch(origin = 'train', syst = False, noStop = True)
+    iter_sys = self.get_batch(origin = 'train', syst = True, noStop = True)
+    iter_test = self.get_batch(origin = 'test', noStop = True)
     for epoch in range(self.n_iteration):
       if self.no_adv:
-        x_batch_nom, x_batch_nom_w, y_batch_nom = self.get_batch_train(syst = False)
+        x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
         self.enc.trainable = True
         self.ae.train_on_batch(x_batch_nom, x_batch_nom, sample_weight = x_batch_nom_w)
 
       if not self.no_adv:
-        x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(self.get_batch(origin = 'train', syst = False))
-        x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(self.get_batch(origin = 'train', syst = True))
+        x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
+        x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(iter_sys)
         x_batch = np.concatenate([x_batch_nom, x_batch_syst], axis = 0)
         x_batch_w = np.concatenate([x_batch_nom_w, x_batch_syst_w], axis = 0)
         nom_sys = np.concatenate([s_batch_nom, s_batch_syst], axis = 0)
@@ -570,10 +572,10 @@ class AAE(object):
                                      sample_weight = [x_batch_nom_w])
 
       if epoch % self.n_eval == 0:
-        x,w,y,s = next(self.get_batch(origin = 'test'))
+        x,w,y,s = next(iter_test)
         s_eye = np.eye(3)[s.astype(int),:]
-        tmp, rec_metric, adv_metric = self.aae.evaluate(x, [x, s_eye], sample_weight = [w, w], verbose = 0)
-        disc_metric = self.enc_disc.evaluate(x, y, sample_weight = w, verbose = 0)
+        tmp, rec_metric, adv_metric = self.aae.evaluate(x.values, [x.values, s_eye], sample_weight = [w.values, w.values], verbose = 0)
+        disc_metric = self.enc_disc.evaluate(x.values, y.values, sample_weight = w.values, verbose = 0)
 
         self.rec_loss_train = np.append(self.rec_loss_train, [rec_metric])
         self.adv_loss_train = np.append(self.adv_loss_train, [adv_metric])
@@ -716,12 +718,17 @@ def main():
   # read it from disk
   network.read_input_from_files(filename = args.input)
 
+  var = list(network.file['df'].columns.values)
+  var.remove('syst')
+  var.remove('sample')
+  var.remove('weight')
+
   # when training make some debug plots and prepare the network
   if args.mode == 'train':
     print("Plotting correlations.")
     network.plot_input_correlations("%s/%s_corr.pdf" % (args.result_dir, prefix))
     print("Plotting scatter plots.")
-    network.plot_scatter_input(0, 1, "%s/%s_scatter_%d_%d.png" % (args.result_dir, prefix, 0, 1))
+    network.plot_scatter_input(var[0], var[1], "%s/%s_scatter_%d_%d.png" % (args.result_dir, prefix, 0, 1))
 
     # create network
     network.create_networks()
@@ -757,7 +764,7 @@ def main():
     network.plot_adv_output("%s/%s_adv_output.pdf" % (args.result_dir, prefix))
   elif args.mode == 'plot_input':
     network.plot_input_correlations("%s/%s_corr.pdf" % (args.result_dir, prefix))
-    network.plot_scatter_input(0, 1, "%s/%s_scatter_%d_%d.png" % (args.result_dir, prefix, 0, 1))
+    network.plot_scatter_input(var[0], var[1], "%s/%s_scatter_%d_%d.png" % (args.result_dir, prefix, 0, 1))
   elif args.mode == 'plot_output':
     network.load("%s/%s_enc_%s" % (args.network_dir, prefix, trained), "%s/%s_dec_%s" % (args.network_dir, prefix, trained), "%s/%s_adv_%s" % (args.network_dir, prefix, trained), "%s/%s_disc_%s" % (args.network_dir, prefix, trained))
     network.plot_discriminator_output_syst("%s/%s_discriminator_output_syst.pdf" % (args.result_dir, prefix))
