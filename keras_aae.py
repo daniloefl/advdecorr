@@ -32,6 +32,7 @@ import keras as K
 from utils import LayerNormalization
 
 def smoothen(y):
+  return y
   N = 10
   box = np.ones(N)/float(N)
   return np.convolve(y, box, mode = 'same')
@@ -65,7 +66,10 @@ class AAE(object):
   4) Go back to 2 and repeat this n_iteration times.
   '''
 
-  def __init__(self, n_iteration = 1050, n_pretrain = 200, n_adv = 5,
+  def __init__(self,
+               n_latent = 5,
+               n_iteration = 1050,
+               n_pretrain = 200,
                n_batch = 32,
                lambda_decorr = 1.0,
                n_eval = 50,
@@ -73,76 +77,124 @@ class AAE(object):
     '''
     Initialise the network.
 
+    :param n_latent: Number of latent dimensions.
     :param n_iteration: Number of batches to run over in total.
     :param n_pretrain: Number of batches to run over to pre-train the discriminator.
-    :param n_adv: Number of batches to train the adv. on per batch of the discriminator.
     :param n_batch: Number of samples in a batch.
     :param lambda_decorr: Lambda parameter used to weigh the decorrelation term of the discriminator loss function.
     :param n_eval: Number of batches to train before evaluating metrics.
     :param no_adv: Do not train the adv., so that we can check the impact of the training in an independent discriminator.
     '''
+    self.n_latent = n_latent
     self.n_iteration = n_iteration
     self.n_pretrain = n_pretrain
-    self.n_adv = n_adv
     self.n_batch = n_batch
     self.lambda_decorr = lambda_decorr
     self.n_eval = n_eval
     self.no_adv = no_adv
     self.adv = None
-    self.discriminator = None
+    self.disc = None
+    self.enc = None
+    self.dec = None
 
   '''
     Create adv. network.
   '''
   def create_adv(self):
-    self.adv_input = Input(shape = (1,), name = 'adv_input')
+    self.adv_input = Input(shape = (self.n_latent,), name = 'adv_input')
     xc = self.adv_input
-    xc = Dense(200, activation = None, name = "adv_0")(xc)
+    xc = Dense(200, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = Dense(100, activation = None, name = "adv_1")(xc)
-    xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = LayerNormalization()(xc)
-    xc = Dense(50, activation = None, name = "adv_2")(xc)
+    xc = Dense(100, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = LayerNormalization()(xc)
-    xc = Dense(40, activation = None, name = "adv_3")(xc)
+    xc = Dense(50, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = LayerNormalization()(xc)
-    xc = Dense(10, activation = None, name = "adv_4")(xc)
+    xc = Dense(40, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = Dense(3, activation = 'softmax', name = "adv_7")(xc)
+    xc = LayerNormalization()(xc)
+    xc = Dense(10, activation = None)(xc)
+    xc = K.layers.LeakyReLU(0.2)(xc)
+    xc = Dense(3, activation = 'softmax')(xc)
     self.adv = Model(self.adv_input, xc, name = "adv")
     self.adv.trainable = True
-    self.adv.compile(loss = K.losses.binary_crossentropy,
-                        optimizer = Adam(lr = 1e-3), metrics = [])
+    #self.adv.compile(loss = K.losses.categorical_crossentropy,
+    #                    optimizer = Adam(lr = 1e-3), metrics = [])
 
-  '''
-  Create discriminator network.
-  '''
-  def create_discriminator(self):
-    self.discriminator_input = Input(shape = (self.n_dimensions,), name = 'discriminator_input')
+  def create_enc(self):
+    self.enc_input = Input(shape = (self.n_dimensions,), name = 'enc_input')
 
-    xd = self.discriminator_input
-    xd = Dense(200, activation = None, name = "discriminator_1")(xd)
+    xd = self.enc_input
+    xd = Dense(200, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = Dense(100, activation = None, name = "discriminator_2")(xd)
-    xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = LayerNormalization()(xd)
-    xd = Dense(50, activation = None, name = "discriminator_4")(xd)
+    xd = Dense(100, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = LayerNormalization()(xd)
-    xd = Dense(40, activation = None, name = "discriminator_5")(xd)
+    xd = Dense(50, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = LayerNormalization()(xd)
-    xd = Dense(30, activation = None, name = "discriminator_6")(xd)
+    xd = Dense(40, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = LayerNormalization()(xd)
-    xd = Dense(20, activation = None, name = "discriminator_7")(xd)
+    xd = Dense(30, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = Dense(1, activation = 'sigmoid', name = "discriminator_8")(xd)
-    self.discriminator = Model(self.discriminator_input, xd, name = "discriminator")
-    self.discriminator.trainable = True
-    self.discriminator.compile(loss = K.losses.binary_crossentropy, optimizer = Adam(lr = 1e-3), metrics = [])
+    xd = LayerNormalization()(xd)
+    xd = Dense(20, activation = None)(xd)
+    xd = K.layers.LeakyReLU(0.2)(xd)
+    xd = Dense(self.n_latent, activation = 'None')(xd)
+    self.enc = Model(self.enc_input, xd, name = "enc")
+    self.enc.trainable = True
+    #self.enc.compile(loss = K.losses.mean_squared_error, optimizer = Adam(lr = 1e-3), metrics = [])
+
+  def create_dec(self):
+    self.dec_input = Input(shape = (self.n_latent,), name = 'dec_input')
+
+    xd = self.dec_input
+    xd = Dense(200, activation = None)(xd)
+    xd = K.layers.LeakyReLU(0.2)(xd)
+    xd = Dense(100, activation = None)(xd)
+    xd = K.layers.LeakyReLU(0.2)(xd)
+    xd = LayerNormalization()(xd)
+    xd = Dense(50, activation = None)(xd)
+    xd = K.layers.LeakyReLU(0.2)(xd)
+    xd = LayerNormalization()(xd)
+    xd = Dense(40, activation = None)(xd)
+    xd = K.layers.LeakyReLU(0.2)(xd)
+    xd = LayerNormalization()(xd)
+    xd = Dense(30, activation = None)(xd)
+    xd = K.layers.LeakyReLU(0.2)(xd)
+    xd = LayerNormalization()(xd)
+    xd = Dense(20, activation = None)(xd)
+    xd = K.layers.LeakyReLU(0.2)(xd)
+    xd = Dense(self.n_dimensions, activation = 'None')(xd)
+    self.dec = Model(self.dec_input, xd, name = "dec")
+    self.dec.trainable = True
+    #self.enc.compile(loss = K.losses.mean_squared_error, optimizer = Adam(lr = 1e-3), metrics = [])
+
+  def create_disc(self):
+    self.disc_input = Input(shape = (self.n_latent,), name = 'disc_input')
+
+    xd = self.disc_input
+    xd = Dense(200, activation = None)(xd)
+    xd = K.layers.LeakyReLU(0.2)(xd)
+    xd = Dense(100, activation = None)(xd)
+    xd = K.layers.LeakyReLU(0.2)(xd)
+    xd = LayerNormalization()(xd)
+    xd = Dense(50, activation = None)(xd)
+    xd = K.layers.LeakyReLU(0.2)(xd)
+    xd = LayerNormalization()(xd)
+    xd = Dense(40, activation = None)(xd)
+    xd = K.layers.LeakyReLU(0.2)(xd)
+    xd = LayerNormalization()(xd)
+    xd = Dense(30, activation = None)(xd)
+    xd = K.layers.LeakyReLU(0.2)(xd)
+    xd = LayerNormalization()(xd)
+    xd = Dense(20, activation = None)(xd)
+    xd = K.layers.LeakyReLU(0.2)(xd)
+    xd = Dense(1, activation = 'sigmoid')(xd)
+    self.disc = Model(self.disc_input, xd, name = "disc")
+    self.disc.trainable = True
 
   '''
   Create all networks.
@@ -150,51 +202,62 @@ class AAE(object):
   def create_networks(self):
     if not self.adv:
       self.create_adv()
-    if not self.discriminator:
-      self.create_discriminator()
+    if not self.disc:
+      self.create_disc()
+    if not self.enc:
+      self.create_enc()
+    if not self.dec:
+      self.create_dec()
 
-    self.discriminator.trainable = False
+    self.enc.trainable = True
+    self.dec.trainable = True
+    self.dis.trainable = True
     self.adv.trainable = True
 
-    self.nominal_input = Input(shape = (self.n_dimensions,), name = 'nominal_input')
-    self.syst_input = Input(shape = (self.n_dimensions,), name = 'syst_input')
+    self.any_input = Input(shape = (self.n_dimensions,), name = 'any_input')
+    self.is_sys = Input(shape = (3,), name = 'is_sys')
 
-    from functools import partial
+    self.latent = self.enc(self.any_input)
+    self.ae = Model([self.any_input],
+                    [self.dec(self.latent)],
+                     name = 'ae')
+    self.aae = Model([self.any_input],
+                     [self.dec(self.latent), self.adv(self.latent)],
+                     name = 'aae')
+    self.aae.compile(loss = [K.losses.mean_squared_error, K.losses.categorical_crossentropy],
+                     loss_weights = [1.0, self.lambda_decorr],
+                     optimizer = K.optimizers.Adam(lr = 1e-4), metrics = [])
 
-    self.disc_fixed_adv = Model([self.nominal_input, self.syst_input],
-                                [self.adv(self.discriminator(self.nominal_input)), self.adv(self.discriminator(self.syst_input))],
-                                name = "disc_fixed_adv")
-    self.disc_fixed_adv.compile(loss = [K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
-                                loss_weights = [self.lambda_decorr, self.lambda_decorr],
-                                #optimizer = RMSprop(lr = 1e-4), metrics = [])
-                                optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
+    self.enc.trainable = False
+    self.enc_disc = Model([self.any_input],
+                          [self.dis(self.latent)],
+                          name = 'enc_disc')
+    self.enc_disc.compile(loss = [K.losses.binary_crossentropy],
+                          loss_weights = [1.0],
+                          optimizer = K.optimizers.Adam(lr = 1e-4), metrics = [])
+    self.enc_adv = Model([self.any_input],
+                          [self.adv(self.latent)],
+                          name = 'enc_adv')
 
-    self.discriminator.trainable = True
-    self.adv.trainable = False
-    self.disc_adv_fixed = Model([self.discriminator_input, self.nominal_input, self.syst_input],
-                                [self.discriminator(self.discriminator_input), self.adv(self.discriminator(self.nominal_input)), self.adv(self.discriminator(self.syst_input))],
-                                name = "disc_adv_fixed")
-    self.disc_adv_fixed.compile(loss = [K.losses.binary_crossentropy, K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
-                                   loss_weights = [1.0, -self.lambda_decorr, -self.lambda_decorr],
-                                   #optimizer = RMSprop(lr = 1e-4), metrics = [])
-                                   optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
-
-
+    self.enc.trainable = True
     print("Signal/background discriminator:")
-    self.discriminator.trainable = True
-    self.discriminator.summary()
+    self.disc.summary()
     print("Adv.:")
-    self.adv.trainable = True
     self.adv.summary()
-    print("Disc. against adv.:")
-    self.discriminator.trainable = True
-    self.adv.trainable = False
-    self.disc_adv_fixed.summary()
-    print("Adv. against disc.:")
-    self.discriminator.trainable = False
-    self.adv.trainable = True
-    self.disc_fixed_adv.summary()
-
+    print("Encoder:")
+    self.enc.summary()
+    print("Decoder:")
+    self.dec.summary()
+    print("AE:")
+    self.ae.summary()
+    print("AAE:")
+    self.aae.summary()
+    print("Enc.-disc.:")
+    self.enc.trainable = False
+    self.enc_disc.summary()
+    print("Enc.-adv.:")
+    self.enc_adv.summary()
+    self.enc.trainable = True
 
   '''
   '''
@@ -288,10 +351,10 @@ class AAE(object):
     import matplotlib.pyplot as plt
     import seaborn as sns
     out_signal = []
-    for x,w,y in self.get_batch(origin = 'test', signal = True): out_signal.extend(self.discriminator.predict(x))
+    for x,w,y in self.get_batch(origin = 'test', signal = True): out_signal.extend(self.enc_disc.predict(x))
     out_signal = np.array(out_signal)
     out_bkg = []
-    for x,w,y in self.get_batch(origin = 'test', signal = False): out_bkg.extend(self.discriminator.predict(x))
+    for x,w,y in self.get_batch(origin = 'test', signal = False): out_bkg.extend(self.enc_disc.predict(x))
     out_bkg = np.array(out_bkg)
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111)
@@ -312,17 +375,17 @@ class AAE(object):
     import seaborn as sns
 
     out_signal = []
-    for x,w,y in self.get_batch(origin = 'test', signal = True, syst = False): out_signal.extend(self.discriminator.predict(x))
+    for x,w,y in self.get_batch(origin = 'test', signal = True, syst = False): out_signal.extend(self.enc_disc.predict(x))
     out_signal = np.array(out_signal)
     out_bkg = []
-    for x,w,y in self.get_batch(origin = 'test', signal = False, syst = False): out_bkg.extend(self.discriminator.predict(x))
+    for x,w,y in self.get_batch(origin = 'test', signal = False, syst = False): out_bkg.extend(self.enc_disc.predict(x))
     out_bkg = np.array(out_bkg)
 
     out_signal_s = []
-    for x,w,y in self.get_batch(origin = 'test', signal = True, syst = True): out_signal_s.extend(self.discriminator.predict(x))
+    for x,w,y in self.get_batch(origin = 'test', signal = True, syst = True): out_signal_s.extend(self.enc_disc.predict(x))
     out_signal_s = np.array(out_signal_s)
     out_bkg_s = []
-    for x,w,y in self.get_batch(origin = 'test', signal = False, syst = True): out_bkg_s.extend(self.discriminator.predict(x))
+    for x,w,y in self.get_batch(origin = 'test', signal = False, syst = True): out_bkg_s.extend(self.enc_disc.predict(x))
     out_bkg_s = np.array(out_bkg_s)
 
     Nbins = 20
@@ -407,10 +470,10 @@ class AAE(object):
     import seaborn as sns
     # use get_continuour_batch to read directly from the file
     out_syst_nominal = []
-    for x,w,y in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.adv.predict(self.discriminator.predict(x)))
+    for x,w,y in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.enc_adv.predict(x))
     out_syst_nominal = np.array(out_syst_nominal)
     out_syst_var = []
-    for x,w,y in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.adv.predict(self.discriminator.predict(x)))
+    for x,w,y in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.enc_adv.predict(x))
     out_syst_var = np.array(out_syst_var)
     bins = np.linspace(np.amin(out_syst_nominal), np.amax(out_syst_nominal), 10)
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -448,7 +511,8 @@ class AAE(object):
       x_batch = self.file[origin][r, self.col_data:]
       x_batch_w = self.file[origin][r, self.col_weight]
       y_batch = self.file[origin][r, self.col_signal]
-      yield x_batch, x_batch_w, y_batch
+      s_batch = self.file[origin][r, self.col_syst]
+      yield x_batch, x_batch_w, y_batch, s_batch
 
   def get_batch_train(self, syst):
     if not syst:
@@ -465,23 +529,18 @@ class AAE(object):
     x_batch = self.file['train'][r, self.col_data:]
     x_batch_w = self.file['train'][r, self.col_weight]
     y_batch = self.file['train'][r, self.col_signal]
-    return x_batch, x_batch_w, y_batch
+    s_batch = self.file['train'][r, self.col_syst]
+    return x_batch, x_batch_w, y_batch, s_batch
 
   def train(self, prefix, result_dir, network_dir):
-    # algorithm:
-    # 0) pretrain discriminator
-    # 1) Train adv. to guess syst. (freezing discriminator)
-    # 2) Train disc. to fool adv. (freezing adv.)
-    self.adv_gp_loss_train = np.array([])
+    self.rec_loss_train = np.array([])
     self.adv_loss_train = np.array([])
-    self.adv_loss_nom_train = np.array([])
-    self.adv_loss_sys_train = np.array([])
     self.disc_loss_train = np.array([])
     nominal = np.zeros( (self.n_batch, 3) )
     syst_up = np.zeros( (self.n_batch, 3) )
     syst_dw = np.zeros( (self.n_batch, 3) )
-    nominal[:,1] = 1.0
-    syst_up[:,0] = 1.0
+    nominal[:,0] = 1.0
+    syst_up[:,1] = 1.0
     syst_dw[:,2] = 1.0
     positive_y = np.ones(self.n_batch)
     zero_y = np.zeros(self.n_batch)
@@ -489,84 +548,52 @@ class AAE(object):
     for epoch in range(self.n_iteration):
       if self.no_adv:
         x_batch_nom, x_batch_nom_w, y_batch_nom = self.get_batch_train(syst = False)
-        self.discriminator.trainable = True
-        self.discriminator.train_on_batch(x_batch_nom, y_batch_nom, sample_weight = x_batch_nom_w)
+        self.enc.trainable = True
+        self.ae.train_on_batch(x_batch_nom, x_batch_nom, sample_weight = x_batch_nom_w)
 
       if not self.no_adv:
-        # step 0 - pretraining
-        if epoch < self.n_pretrain:
-          x_batch_nom, x_batch_nom_w, y_batch_nom = self.get_batch_train(syst = False)
-          self.discriminator.trainable = True
-          self.discriminator.train_on_batch(x_batch_nom, y_batch_nom, sample_weight = x_batch_nom_w) # reconstruct input in auto-encoder
+        x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(self.get_batch(origin = 'train', syst = False))
+        x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(self.get_batch(origin = 'train', syst = True))
+        x_batch = np.concatenate([x_batch_nom, x_batch_syst], axis = 0)
+        x_batch_w = np.concatenate([x_batch_nom_w, x_batch_syst_w], axis = 0)
+        nom_sys = np.concatenate([s_batch_nom, s_batch_syst], axis = 0)
+        s_batch = np.eye(3)[nom_sys,:]
 
-        if epoch >= self.n_pretrain:
-          # step adv.
-          n_adv = self.n_adv
-          if epoch < 2*self.n_pretrain:
-            n_adv = 5*self.n_adv
-          for k in range(0, n_adv):
-            x_batch_nom, x_batch_nom_w, y_batch_nom = self.get_batch_train(syst = False)
-            x_batch_syst, x_batch_syst_w, y_batch_syst = self.get_batch_train(syst = True)
+        self.enc.trainable = True
+        self.aae.train_on_batch([x_batch],
+                                [x_batch, s_batch],
+                                sample_weight = [x_batch_w, x_batch_w])
 
-            self.discriminator.trainable = False
-            self.adv.trainable = True
-            self.disc_fixed_adv.train_on_batch([x_batch_nom, x_batch_syst],
-                                               [nominal, syst_up],
-                                               sample_weight = [x_batch_nom_w, x_batch_syst_w])
+        self.enc.trainable = False
+        self.enc_disc.train_on_batch([x_batch_nom],
+                                     [y_batch_nom],
+                                     sample_weight = [x_batch_nom_w])
 
-          # step generator
-          x_batch_nom, x_batch_nom_w, y_batch_nom = self.get_batch_train(syst = False)
-          x_batch_syst, x_batch_syst_w, y_batch_syst = self.get_batch_train(syst = True)
-
-          self.discriminator.trainable = True
-          self.adv.trainable = False
-          self.disc_adv_fixed.train_on_batch([x_batch_nom, x_batch_nom, x_batch_syst],
-                                             [y_batch_nom, nominal, syst_up],
-                                             sample_weight = [x_batch_nom_w, x_batch_nom_w, x_batch_syst_w])
-  
       if epoch % self.n_eval == 0:
-        disc_metric = 0
-        adv_metric_nom = 0
-        adv_metric_syst = 0
-        c = 0.0
-        for x,w,y in self.get_batch(origin = 'test', syst = False):
-          disc_metric += self.discriminator.evaluate(x, y, sample_weight = w, verbose = 0)
-          if epoch >= self.n_pretrain and not self.no_adv:
-            adv_metric_nom += self.adv.evaluate(self.discriminator.predict(x, verbose = 0), nominal, sample_weight = w, verbose = 0)
-          c += 1.0
-        disc_metric /= c
-        adv_metric_nom /= c
-        if epoch >= self.n_pretrain and not self.no_adv:
-          c = 0.0
-          for x_s,w_s,y_s in self.get_batch(origin = 'test', syst = True):
-            adv_metric_syst += self.adv.evaluate(self.discriminator.predict(x_s, verbose = 0), syst_up, sample_weight = w_s, verbose = 0)
-            c += 1.0
-          adv_metric_syst /= c
-        adv_metric = adv_metric_nom - adv_metric_syst
-        if adv_metric == 0: adv_metric = 1e-20
+        x,w,y,s = next(self.get_batch(origin = 'test'))
+        s_eye = np.eye(3)[s,:]
+        tmp, rec_metric, adv_metric = self.aae.evaluate(x, [x, s_eye], sample_weight = w, verbose = 0)
+        disc_metric = self.enc_disc.evaluate(x, y, sample_weight = w, verbose = 0)
 
+        self.rec_loss_train = np.append(self.rec_loss_train, [rec_metric])
         self.adv_loss_train = np.append(self.adv_loss_train, [adv_metric])
-        self.adv_loss_nom_train = np.append(self.adv_loss_nom_train, [adv_metric_nom])
-        self.adv_loss_sys_train = np.append(self.adv_loss_sys_train, [adv_metric_syst])
         self.disc_loss_train = np.append(self.disc_loss_train, [disc_metric])
         floss = h5py.File('%s/%s_loss.h5' % (result_dir, prefix), 'w')
+        floss.create_dataset('rec_loss', data = self.rec_loss_train)
         floss.create_dataset('adv_loss', data = self.adv_loss_train)
-        floss.create_dataset('adv_loss_nom', data = self.adv_loss_nom_train)
-        floss.create_dataset('adv_loss_sys', data = self.adv_loss_sys_train)
         floss.create_dataset('disc_loss', data = self.disc_loss_train)
         floss.close()
 
-        print("Batch %5d: L_{disc. only} = %10.7f; - lambda_{decorr} L_{adv.} = %10.7f ; L_{adv.,nom} = %10.7f ; L_{adv.,sys} = %10.7f" % (epoch, disc_metric, -self.lambda_decorr*adv_metric, adv_metric_nom, adv_metric_syst))
-        self.save("%s/%s_discriminator_%d" % (network_dir, prefix, epoch), "%s/%s_adv_%d" % (network_dir, prefix, epoch))
+        print("Batch %5d: L_{rec.} = %10.7f; lambda_{decorr} L_{adv.} = %10.7f ; L_{disc.} = %10.7f " % (epoch, rec_metric, self.lambda_decorr*adv_metric, disc_metric))
+        self.save("%s/%s_enc_%d" % (network_dir, prefix, epoch), "%s/%s_dec_%d" % (network_dir, prefix, epoch), "%s/%s_adv_%d" % (network_dir, prefix, epoch), "%s/%s_disc_%d" % (network_dir, prefix, epoch))
       #gc.collect()
 
     print("============ End of training ===============")
 
   def load_loss(self, filename):
     floss = h5py.File(filename)
+    self.rec_loss_train = floss['rec_loss'][:]
     self.adv_loss_train = floss['adv_loss'][:]
-    self.adv_loss_nom_train = floss['adv_loss_nom'][:]
-    self.adv_loss_sys_train = floss['adv_loss_sys'][:]
     self.disc_loss_train = floss['disc_loss'][:]
     self.n_iteration = len(self.disc_loss_train)*self.n_eval
     floss.close()
@@ -575,15 +602,13 @@ class AAE(object):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(10, 8))
     it = np.arange(0, self.n_iteration, self.n_eval)
-    plt.plot(it, (self.disc_loss_train), linestyle = ':', color = 'r')
-    plt.plot(it, (np.fabs(-self.lambda_decorr*self.adv_loss_train)), linestyle = ':', color = 'b')
-    plt.plot(it, (np.abs(self.disc_loss_train - self.lambda_decorr*np.abs(self.adv_loss_train))), linestyle = ':', color = 'k')
+    plt.plot(it, (self.rec_loss_train), linestyle = '-', color = 'r')
+    plt.plot(it, (np.fabs(self.lambda_decorr*self.adv_loss_train)), linestyle = '-', color = 'b')
+    plt.plot(it, (np.abs(self.rec_loss_train + self.lambda_decorr*self.adv_loss_train)), linestyle = '-', color = 'k')
+    plt.plot(it, np.abs(self.disc_loss_train), linestyle = '-', color = 'v')
 
-    plt.plot(it, smoothen(self.disc_loss_train), linestyle = '-', color = 'r', label = r'$\mathcal{L}_{\mathrm{disc}}$')
-    plt.plot(it, smoothen(np.fabs(-self.lambda_decorr*self.adv_loss_train)), linestyle = '-', color = 'b', label = r' | $\lambda_{\mathrm{decorr}} \mathcal{L}_{\mathrm{adv}} |$')
-    plt.plot(it, smoothen(np.abs(self.disc_loss_train - self.lambda_decorr*np.abs(self.adv_loss_train))), linestyle = '-', color = 'k', label = r'$\mathcal{L}_{\mathrm{disc}} - \lambda_{\mathrm{decorr}} |\mathcal{L}_{\mathrm{adv}}$|')
-    plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
-    plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of adv bootstrap')
+    #plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
+    #plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of adv bootstrap')
     if nnTaken > 0:
       plt.axvline(x = nnTaken, color = 'r', linestyle = '--', label = 'Configuration taken for further analysis')
     ax.set(xlabel='Batches', ylabel='Loss', title='Training evolution');
@@ -593,45 +618,48 @@ class AAE(object):
     plt.savefig(filename)
     plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(10, 8))
-    fac = 1.0
-    if np.max(np.abs(self.adv_loss_nom_train)) > 0:
-      fac /= np.max(np.abs(self.adv_loss_nom_train))
-    plt.plot(it, (fac*self.adv_loss_nom_train), linestyle = ':', color = 'g')
-    plt.plot(it, (-fac*self.adv_loss_sys_train), linestyle = ':', color = 'c')
-    plt.plot(it, smoothen(fac*self.adv_loss_nom_train), linestyle = '-', color = 'g', label = r' $ %4.2f \mathcal{L}_{\mathrm{adv,nom}}$' % (fac) )
-    plt.plot(it, smoothen(-fac*self.adv_loss_sys_train), linestyle = '-', color = 'c', label = r' $ %4.2f \mathcal{L}_{\mathrm{adv,sys}}$' % (-fac) )
-    plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
-    plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of adv bootstrap')
-    if nnTaken > 0:
-      plt.axvline(x = nnTaken, color = 'r', linestyle = '--', label = 'Configuration taken for further analysis')
-    ax.set(xlabel='Batches', ylabel='Loss', title='Training evolution');
-    ax.set_ylim([-1, 1])
-    plt.legend(frameon = False)
-    filename_adv = filename.replace('.pdf', '_adv_split.pdf')
-    plt.savefig(filename_adv)
-    plt.close(fig)
-  
-  def save(self, discriminator_filename, adv_filename):
+  def save(self, enc_filename, dec_filename, adv_filename, disc_filename):
+    enc_json = self.enc.to_json()
+    with open("%s.json" % enc_filename, "w") as json_file:
+      json_file.write(enc_json)
+    self.enc.save_weights("%s.h5" % enc_filename)
+
+    dec_json = self.dec.to_json()
+    with open("%s.json" % dec_filename, "w") as json_file:
+      json_file.write(dec_json)
+    self.dec.save_weights("%s.h5" % dec_filename)
+
     adv_json = self.adv.to_json()
     with open("%s.json" % adv_filename, "w") as json_file:
       json_file.write(adv_json)
     self.adv.save_weights("%s.h5" % adv_filename)
 
-    discriminator_json = self.discriminator.to_json()
-    with open("%s.json" % discriminator_filename, "w") as json_file:
-      json_file.write(discriminator_json)
-    self.discriminator.save_weights("%s.h5" % discriminator_filename)
+    disc_json = self.disc.to_json()
+    with open("%s.json" % disc_filename, "w") as json_file:
+      json_file.write(disc_json)
+    self.disc.save_weights("%s.h5" % disc_filename)
 
   '''
   Load stored network
   '''
-  def load(self, discriminator_filename, adv_filename):
-    json_file = open('%s.json' % discriminator_filename, 'r')
+  def load(self, enc_filename, dec_filename, adv_filename, disc_filename):
+    json_file = open('%s.json' % dec_filename, 'r')
     loaded_model_json = json_file.read()
     json_file.close()
-    self.discriminator = K.models.model_from_json(loaded_model_json, custom_objects={'LayerNormalization': LayerNormalization})
-    self.discriminator.load_weights("%s.h5" % discriminator_filename)
+    self.dec = K.models.model_from_json(loaded_model_json, custom_objects={'LayerNormalization': LayerNormalization})
+    self.dec.load_weights("%s.h5" % dec_filename)
+
+    json_file = open('%s.json' % enc_filename, 'r')
+    loaded_model_json = json_file.read()
+    json_file.close()
+    self.enc = K.models.model_from_json(loaded_model_json, custom_objects={'LayerNormalization': LayerNormalization})
+    self.enc.load_weights("%s.h5" % enc_filename)
+
+    json_file = open('%s.json' % disc_filename, 'r')
+    loaded_model_json = json_file.read()
+    json_file.close()
+    self.disc = K.models.model_from_json(loaded_model_json, custom_objects={'LayerNormalization': LayerNormalization})
+    self.disc.load_weights("%s.h5" % disc_filename)
 
     json_file = open('%s.json' % adv_filename, 'r')
     loaded_model_json = json_file.read()
@@ -639,18 +667,17 @@ class AAE(object):
     self.adv = K.models.model_from_json(loaded_model_json, custom_objects = {'LayerNormalization': LayerNormalization})
     self.adv.load_weights("%s.h5" % adv_filename)
 
-    self.adv_input = K.layers.Input(shape = (1,), name = 'adv_input')
-    self.discriminator_input = K.layers.Input(shape = (self.n_dimensions,), name = 'discriminator_input')
+    self.enc_input = K.layers.Input(shape = (self.n_dimensions,), name = 'enc_input')
+    self.dec_input = K.layers.Input(shape = (self.n_latent,), name = 'dec_input')
+    self.adv_input = K.layers.Input(shape = (self.n_latent,), name = 'adv_input')
+    self.disc_input = K.layers.Input(shape = (self.n_latent,), name = 'disc_input')
 
-    self.discriminator.compile(loss = K.losses.binary_crossentropy, optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
-    self.adv.compile(loss = K.losses.binary_crossentropy,
-                        optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
     self.create_networks()
 
 def main():
   import argparse
 
-  parser = argparse.ArgumentParser(description = 'Train a Wasserstein GAN with gradient penalty to classify signal versus background while being insensitive to systematic variations.')
+  parser = argparse.ArgumentParser(description = 'Train an adversarial auto-encoder with an extra discriminator in latent space to classify signal versus background while being insensitive to systematic variations.')
   parser.add_argument('--network-dir', dest='network_dir', action='store',
                     default='network',
                     help='Directory where networks are saved during training. (default: "network")')
@@ -662,13 +689,13 @@ def main():
                     help='Name of the file from where to read the input. If the file does not exist, create it. (default: "input.h5")')
   parser.add_argument('--load-trained', dest='trained', action='store',
                     default='1000',
-                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "1950")')
+                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "1000")')
   parser.add_argument('--prefix', dest='prefix', action='store',
-                    default='gan',
-                    help='Prefix to be added to filenames when producing plots. (default: "gan")')
+                    default='aae',
+                    help='Prefix to be added to filenames when producing plots. (default: "aae")')
   parser.add_argument('--no-adv', dest='no_adv', action='store',
                     default=False,
-                    help='If True, train only the discriminator. (default: False)')
+                    help='If True, train only the autoencoder and discriminator. (default: False)')
   parser.add_argument('--mode', metavar='MODE', choices=['train', 'plot_loss', 'plot_input', 'plot_output', 'plot_disc', 'plot_adv'],
                      default = 'train',
                      help='The mode is either "train" (a neural network), "plot_loss" (plot loss from training), "plot_input" (plot input variables and correlations), "plot_output" (plot output variables), "plot_disc" (plot discriminator output), "plot_adv" (plot adv. output). (default: train)')
@@ -681,7 +708,7 @@ def main():
   if not os.path.exists(args.network_dir):
     os.makedirs(args.network_dir)
 
-  network = GAN(no_adv = args.no_adv)
+  network = AAE(no_adv = args.no_adv)
   # apply pre-processing if the preprocessed file does not exist
   if not os.path.isfile(args.input):
     network.prepare_input(filename = args.input)
@@ -723,16 +750,16 @@ def main():
     network.load_loss("%s/%s_loss.h5" % (args.result_dir, prefix))
     network.plot_train_metrics("%s/%s_training.pdf" % (args.result_dir, prefix), int(trained))
   elif args.mode == 'plot_disc':
-    network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_adv_%s" % (args.network_dir, prefix, trained))
+    network.load("%s/%s_enc_%s" % (args.network_dir, prefix, trained), "%s/%s_dec_%s" % (args.network_dir, prefix, trained), "%s/%s_adv_%s" % (args.network_dir, prefix, trained), "%s/%s_disc_%s" % (args.network_dir, prefix, trained))
     network.plot_discriminator_output("%s/%s_discriminator_output.pdf" % (args.result_dir, prefix))
   elif args.mode == 'plot_adv':
-    network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_adv_%s" % (args.network_dir, prefix, trained))
+    network.load("%s/%s_enc_%s" % (args.network_dir, prefix, trained), "%s/%s_dec_%s" % (args.network_dir, prefix, trained), "%s/%s_adv_%s" % (args.network_dir, prefix, trained), "%s/%s_disc_%s" % (args.network_dir, prefix, trained))
     network.plot_adv_output("%s/%s_adv_output.pdf" % (args.result_dir, prefix))
   elif args.mode == 'plot_input':
     network.plot_input_correlations("%s/%s_corr.pdf" % (args.result_dir, prefix))
     network.plot_scatter_input(0, 1, "%s/%s_scatter_%d_%d.png" % (args.result_dir, prefix, 0, 1))
   elif args.mode == 'plot_output':
-    network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_adv_%s" % (args.network_dir, prefix, trained))
+    network.load("%s/%s_enc_%s" % (args.network_dir, prefix, trained), "%s/%s_dec_%s" % (args.network_dir, prefix, trained), "%s/%s_adv_%s" % (args.network_dir, prefix, trained), "%s/%s_disc_%s" % (args.network_dir, prefix, trained))
     network.plot_discriminator_output_syst("%s/%s_discriminator_output_syst.pdf" % (args.result_dir, prefix))
   else:
     print('Option mode not understood.')
