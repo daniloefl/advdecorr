@@ -225,7 +225,7 @@ class AAE(object):
                      [self.dec(self.latent), self.adv(self.latent)],
                      name = 'aae')
     self.aae.compile(loss = [K.losses.mean_squared_error, K.losses.categorical_crossentropy],
-                     loss_weights = [1.0, self.lambda_decorr],
+                     loss_weights = [1.0, -self.lambda_decorr],
                      optimizer = K.optimizers.Adam(lr = 1e-4), metrics = [])
 
     self.enc.trainable = False
@@ -477,10 +477,10 @@ class AAE(object):
     out_syst_var = np.array(out_syst_var)
     bins = np.linspace(np.amin(out_syst_nominal), np.amax(out_syst_nominal), 10)
     fig, ax = plt.subplots(figsize=(10, 8))
-    sns.distplot(out_syst_nominal[:,1], bins = bins,
+    sns.distplot(out_syst_nominal[:,0], bins = bins,
                  kde = False, label = "Test nominal", norm_hist = True, hist = True,
                  hist_kws={"histtype": "step", "linewidth": 2, "color": "r"})
-    sns.distplot(out_syst_var[:,1], bins = bins,
+    sns.distplot(out_syst_var[:,0], bins = bins,
                  kde = False, label = "Test syst. var.", norm_hist = True, hist = True,
                  hist_kws={"histtype": "step", "linewidth": 2, "color": "b"})
     ax.set(xlabel = 'Critic NN output', ylabel = 'Events', title = '');
@@ -602,10 +602,10 @@ class AAE(object):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(10, 8))
     it = np.arange(0, self.n_iteration, self.n_eval)
-    plt.plot(it, (self.rec_loss_train), linestyle = '-', color = 'r')
-    plt.plot(it, (np.fabs(self.lambda_decorr*self.adv_loss_train)), linestyle = '-', color = 'b')
-    plt.plot(it, (np.abs(self.rec_loss_train + self.lambda_decorr*self.adv_loss_train)), linestyle = '-', color = 'k')
-    plt.plot(it, np.abs(self.disc_loss_train), linestyle = '-', color = 'g')
+    plt.plot(it, (self.rec_loss_train), linestyle = '-', color = 'r', label = 'Reconstruction')
+    plt.plot(it, (np.fabs(self.lambda_decorr*self.adv_loss_train)), linestyle = '-', color = 'b', label = 'Adversary')
+    plt.plot(it, (np.abs(self.rec_loss_train - self.lambda_decorr*self.adv_loss_train)), linestyle = '-', color = 'k', label = 'Rec. + adv.')
+    plt.plot(it, np.abs(self.disc_loss_train), linestyle = '-', color = 'g', label = 'Discriminator')
 
     #plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
     #plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of adv bootstrap')
