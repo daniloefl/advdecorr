@@ -120,8 +120,8 @@ class AAE(object):
     xc = Dense(3, activation = 'softmax')(xc)
     self.adv = Model(self.adv_input, xc, name = "adv")
     self.adv.trainable = True
-    #self.adv.compile(loss = K.losses.categorical_crossentropy,
-    #                    optimizer = Adam(lr = 1e-3), metrics = [])
+    self.adv.compile(loss = K.losses.categorical_crossentropy,
+                        optimizer = Adam(lr = 1e-3), metrics = [])
 
   def create_enc(self):
     self.enc_input = Input(shape = (self.n_dimensions,), name = 'enc_input')
@@ -607,9 +607,27 @@ class AAE(object):
     for epoch in range(self.n_iteration):
       if self.no_adv:
         x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
+        x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(iter_sys)
+
+        # step AE
         self.enc.trainable = True
         self.dec.trainable = True
         self.ae.train_on_batch(x_batch_nom, x_batch_nom, sample_weight = x_batch_nom_w)
+
+        # step adv.
+        self.enc.trainable = False
+        self.dec.trainable = False
+        self.adv.trainable = True
+        self.adv.train_on_batch([x_batch_nom, x_batch_syst],
+                                [np.eye(3)[s_batch_nom.astype(int), :], np.eye(3)[s_batch_syst.astype(int), :]],
+                                sample_weight = [x_batch_nom_w, x_batch_syst_w])
+
+        # step discriminator
+        self.enc.trainable = False
+        self.disc.trainable = True
+        self.enc_disc.train_on_batch([x_batch_nom],
+                                     [y_batch_nom],
+                                     sample_weight = [x_batch_nom_w])
 
       if not self.no_adv:
         x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
