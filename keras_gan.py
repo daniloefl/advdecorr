@@ -509,8 +509,6 @@ class GAN(object):
         if epoch >= self.n_pretrain:
           # step adv.
           n_adv = self.n_adv
-          if epoch < 2*self.n_pretrain:
-            n_adv = 5*self.n_adv
           for k in range(0, n_adv):
             x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
             x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(iter_sys)
@@ -581,7 +579,7 @@ class GAN(object):
     plt.plot(it, (np.fabs(-self.lambda_decorr*self.adv_loss_train)), linestyle = '-', color = 'b', label = r' | $\lambda_{\mathrm{decorr}} \mathcal{L}_{\mathrm{adv}} |$')
     plt.plot(it, (np.abs(self.disc_loss_train - self.lambda_decorr*np.abs(self.adv_loss_train))), linestyle = '-', color = 'k', label = r'$\mathcal{L}_{\mathrm{disc}} - \lambda_{\mathrm{decorr}} |\mathcal{L}_{\mathrm{adv}}$|')
     plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
-    plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of adv bootstrap')
+    #plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of adv bootstrap')
     if nnTaken > 0:
       plt.axvline(x = nnTaken, color = 'r', linestyle = '--', label = 'Configuration taken for further analysis')
     ax.set(xlabel='Batches', ylabel='Loss', title='Training evolution');
