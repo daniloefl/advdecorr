@@ -117,8 +117,8 @@ class GAN(object):
     xc = Dense(3, activation = 'softmax')(xc)
     self.adv = Model(self.adv_input, xc, name = "adv")
     self.adv.trainable = True
-    #self.adv.compile(loss = K.losses.categorical_crossentropy,
-    #                    optimizer = Adam(lr = 1e-3), metrics = [])
+    self.adv.compile(loss = K.losses.categorical_crossentropy,
+                        optimizer = Adam(lr = 1e-3), metrics = [])
 
   '''
   Create discriminator network.
