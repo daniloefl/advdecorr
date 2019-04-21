@@ -202,7 +202,7 @@ class GAN(object):
   '''
   '''
   def read_input_from_files(self, filename = 'input_preprocessed.h5'):
-    self.file = pd.HDFStore(filename)
+    self.file = pd.HDFStore(filename, 'r')
     self.n_dimensions = self.file['df'].shape[1]-3
     self.col_signal = self.file['df'].columns.get_loc('sample')
     self.col_syst = self.file['df'].columns.get_loc('syst')
