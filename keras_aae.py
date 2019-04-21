@@ -618,9 +618,9 @@ class AAE(object):
         self.enc.trainable = False
         self.dec.trainable = False
         self.adv.trainable = True
-        self.adv.train_on_batch([x_batch_nom, x_batch_syst],
-                                [np.eye(3)[s_batch_nom.astype(int), :], np.eye(3)[s_batch_syst.astype(int), :]],
-                                sample_weight = [x_batch_nom_w, x_batch_syst_w])
+        self.ae_fixed_adv.train_on_batch([x_batch_nom, x_batch_syst],
+                                         [np.eye(3)[s_batch_nom.astype(int), :], np.eye(3)[s_batch_syst.astype(int), :]],
+                                         sample_weight = [x_batch_nom_w, x_batch_syst_w])
 
         # step discriminator
         self.enc.trainable = False
