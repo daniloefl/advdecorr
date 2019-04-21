@@ -605,7 +605,7 @@ class AAE(object):
     plt.plot(it, (self.rec_loss_train), linestyle = '-', color = 'r')
     plt.plot(it, (np.fabs(self.lambda_decorr*self.adv_loss_train)), linestyle = '-', color = 'b')
     plt.plot(it, (np.abs(self.rec_loss_train + self.lambda_decorr*self.adv_loss_train)), linestyle = '-', color = 'k')
-    plt.plot(it, np.abs(self.disc_loss_train), linestyle = '-', color = 'v')
+    plt.plot(it, np.abs(self.disc_loss_train), linestyle = '-', color = 'g')
 
     #plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
     #plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of adv bootstrap')
