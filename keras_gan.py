@@ -70,7 +70,7 @@ class GAN(object):
   4) Go back to 2 and repeat this n_iteration times.
   '''
 
-  def __init__(self, n_iteration = 1050, n_pretrain = 200, n_adv = 5,
+  def __init__(self, n_iteration = 1050, n_pretrain = 0, n_adv = 5,
                n_batch = 32,
                lambda_decorr = 1.0,
                n_eval = 50,
@@ -486,9 +486,6 @@ class GAN(object):
     self.adv_loss_nom_train = np.array([])
     self.adv_loss_sys_train = np.array([])
     self.disc_loss_train = np.array([])
-    positive_y = np.ones(self.n_batch)
-    zero_y = np.zeros(self.n_batch)
-    negative_y = np.ones(self.n_batch)*(-1)
     iter_nom = self.get_batch(origin = 'train', syst = False, noStop = True)
     iter_sys = self.get_batch(origin = 'train', syst = True, noStop = True)
     iter_test_nom = self.get_batch(origin = 'test', syst = False, noStop = True)
@@ -522,8 +519,6 @@ class GAN(object):
           # step generator
           x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
           x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(iter_sys)
-          nominal = np.eye(3)[s_batch_nom.astype(int), :]
-          syst_up = np.eye(3)[s_batch_syst.astype(int), :]
 
           self.disc.trainable = True
           self.adv.trainable = False
@@ -539,7 +534,6 @@ class GAN(object):
         disc_metric += self.disc.evaluate(x.values, y.values, sample_weight = w.values, verbose = 0)
         if epoch >= self.n_pretrain and not self.no_adv:
           adv_metric_nom += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), np.eye(3)[s.astype(int),:], sample_weight = w.values, verbose = 0)
-        if epoch >= self.n_pretrain and not self.no_adv:
           x,w,y,s = next(iter_test_sys)
           adv_metric_syst += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), np.eye(3)[s.astype(int),:], sample_weight = w.values, verbose = 0)
         adv_metric = adv_metric_nom + adv_metric_syst
@@ -578,8 +572,9 @@ class GAN(object):
     plt.plot(it, (self.disc_loss_train), linestyle = '-', color = 'r', label = r'$\mathcal{L}_{\mathrm{disc}}$')
     plt.plot(it, (np.fabs(-self.lambda_decorr*self.adv_loss_train)), linestyle = '-', color = 'b', label = r' | $\lambda_{\mathrm{decorr}} \mathcal{L}_{\mathrm{adv}} |$')
     plt.plot(it, (np.abs(self.disc_loss_train - self.lambda_decorr*np.abs(self.adv_loss_train))), linestyle = '-', color = 'k', label = r'$\mathcal{L}_{\mathrm{disc}} - \lambda_{\mathrm{decorr}} |\mathcal{L}_{\mathrm{adv}}$|')
-    plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
-    #plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of adv bootstrap')
+    if self.n_pretrain > 0:
+      plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
+      #plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of adv bootstrap')
     if nnTaken > 0:
       plt.axvline(x = nnTaken, color = 'r', linestyle = '--', label = 'Configuration taken for further analysis')
     ax.set(xlabel='Batches', ylabel='Loss', title='Training evolution');
@@ -595,8 +590,9 @@ class GAN(object):
       fac /= np.max(np.abs(self.adv_loss_nom_train))
     plt.plot(it, (fac*self.adv_loss_nom_train), linestyle = '-', color = 'g', label = r' $ %4.2f \mathcal{L}_{\mathrm{adv,nom}}$' % (fac) )
     plt.plot(it, (-fac*self.adv_loss_sys_train), linestyle = '-', color = 'c', label = r' $ %4.2f \mathcal{L}_{\mathrm{adv,sys}}$' % (-fac) )
-    plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
-    plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of adv bootstrap')
+    if self.n_pretrain > 0:
+      plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
+      #plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of adv bootstrap')
     if nnTaken > 0:
       plt.axvline(x = nnTaken, color = 'r', linestyle = '--', label = 'Configuration taken for further analysis')
     ax.set(xlabel='Batches', ylabel='Loss', title='Training evolution');

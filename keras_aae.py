@@ -215,29 +215,32 @@ class AAE(object):
     self.disc.trainable = True
     self.adv.trainable = True
 
+    self.nom_input = Input(shape = (self.n_dimensions,), name = 'nom_input')
+    self.sys_input = Input(shape = (self.n_dimensions,), name = 'sys_input')
     self.any_input = Input(shape = (self.n_dimensions,), name = 'any_input')
-    self.is_sys = Input(shape = (3,), name = 'is_sys')
 
-    self.latent = self.enc(self.any_input)
+    self.any_latent = self.enc(self.any_input)
+    self.nom_latent = self.enc(self.nom_input)
+    self.sys_latent = self.enc(self.sys_input)
     self.ae = Model([self.any_input],
-                    [self.dec(self.latent)],
+                    [self.dec(self.any_latent)],
                      name = 'ae')
-    self.aae = Model([self.any_input],
-                     [self.dec(self.latent), self.adv(self.latent)],
+    self.aae = Model([self.any_input, self.nom_input, self.sys_input],
+                     [self.dec(self.any_latent), self.adv(self.nom_latent), self.adv(self.sys_latent)],
                      name = 'aae')
-    self.aae.compile(loss = [K.losses.mean_squared_error, K.losses.categorical_crossentropy],
-                     loss_weights = [1.0, -self.lambda_decorr],
+    self.aae.compile(loss = [K.losses.mean_squared_error, K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
+                     loss_weights = [1.0, -self.lambda_decorr, -self.lambda_decorr],
                      optimizer = K.optimizers.Adam(lr = 1e-4), metrics = [])
 
     self.enc.trainable = False
     self.enc_disc = Model([self.any_input],
-                          [self.disc(self.latent)],
+                          [self.disc(self.any_latent)],
                           name = 'enc_disc')
     self.enc_disc.compile(loss = [K.losses.binary_crossentropy],
                           loss_weights = [1.0],
                           optimizer = K.optimizers.Adam(lr = 1e-4), metrics = [])
     self.enc_adv = Model([self.any_input],
-                          [self.adv(self.latent)],
+                          [self.adv(self.any_latent)],
                           name = 'enc_adv')
 
     self.enc.trainable = True
@@ -539,14 +542,16 @@ class AAE(object):
 
   def train(self, prefix, result_dir, network_dir):
     self.rec_loss_train = np.array([])
-    self.adv_loss_train = np.array([])
+    self.adv_loss_nom_train = np.array([])
+    self.adv_loss_sys_train = np.array([])
     self.disc_loss_train = np.array([])
     positive_y = np.ones(self.n_batch)
     zero_y = np.zeros(self.n_batch)
     negative_y = np.ones(self.n_batch)*(-1)
     iter_nom = self.get_batch(origin = 'train', syst = False, noStop = True)
     iter_sys = self.get_batch(origin = 'train', syst = True, noStop = True)
-    iter_test = self.get_batch(origin = 'test', noStop = True)
+    iter_test_nom = self.get_batch(origin = 'test', syst = False, noStop = True)
+    iter_test_sys = self.get_batch(origin = 'test', syst = True, noStop = True)
     for epoch in range(self.n_iteration):
       if self.no_adv:
         x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
@@ -556,15 +561,11 @@ class AAE(object):
       if not self.no_adv:
         x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
         x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(iter_sys)
-        x_batch = np.concatenate([x_batch_nom, x_batch_syst], axis = 0)
-        x_batch_w = np.concatenate([x_batch_nom_w, x_batch_syst_w], axis = 0)
-        nom_sys = np.concatenate([s_batch_nom, s_batch_syst], axis = 0)
-        s_batch = np.eye(3)[nom_sys.astype(int),:]
 
         self.enc.trainable = True
-        self.aae.train_on_batch([x_batch],
-                                [x_batch, s_batch],
-                                sample_weight = [x_batch_w, x_batch_w])
+        self.aae.train_on_batch([x_batch_nom, x_batch_nom, x_batch_syst],
+                                [x_batch_nom, np.eye(3)[s_batch_nom.astype(int), :], np.eye(3)[s_batch_syst.astype(int), :]],
+                                sample_weight = [x_batch_nom_w, x_batch_nom_w, x_batch_syst_w])
 
         self.enc.trainable = False
         self.enc_disc.train_on_batch([x_batch_nom],
@@ -572,21 +573,26 @@ class AAE(object):
                                      sample_weight = [x_batch_nom_w])
 
       if epoch % self.n_eval == 0:
-        x,w,y,s = next(iter_test)
-        s_eye = np.eye(3)[s.astype(int),:]
-        tmp, rec_metric, adv_metric = self.aae.evaluate(x.values, [x.values, s_eye], sample_weight = [w.values, w.values], verbose = 0)
-        disc_metric = self.enc_disc.evaluate(x.values, y.values, sample_weight = w.values, verbose = 0)
+        x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
+        x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(iter_sys)
+        tmp, rec_metric, adv_metric_nom, adv_metric_sys = self.aae.evaluate([x_batch_nom.values, x_batch_nom.values, x_batch_syst.values],
+                                                                            [x_batch_nom.values, np.eye(3)[s_batch_nom.astype(int), :], np.eye(3)[s_batch_syst.astype(int), :]],
+                                                                            sample_weight = [x_batch_nom_w.values, x_batch_nom_w.values, x_batch_syst_w.values],
+                                                                            verbose = 0)
+        disc_metric = self.enc_disc.evaluate(x_batch_nom.values, y_batch_nom.values, sample_weight = x_batch_nom_w.values, verbose = 0)
 
         self.rec_loss_train = np.append(self.rec_loss_train, [rec_metric])
-        self.adv_loss_train = np.append(self.adv_loss_train, [adv_metric])
+        self.adv_loss_nom_train = np.append(self.adv_loss_nom_train, [adv_metric_nom])
+        self.adv_loss_sys_train = np.append(self.adv_loss_sys_train, [adv_metric_sys])
         self.disc_loss_train = np.append(self.disc_loss_train, [disc_metric])
         floss = h5py.File('%s/%s_loss.h5' % (result_dir, prefix), 'w')
         floss.create_dataset('rec_loss', data = self.rec_loss_train)
-        floss.create_dataset('adv_loss', data = self.adv_loss_train)
+        floss.create_dataset('adv_nom_loss', data = self.adv_loss_nom_train)
+        floss.create_dataset('adv_sys_loss', data = self.adv_loss_sys_train)
         floss.create_dataset('disc_loss', data = self.disc_loss_train)
         floss.close()
 
-        print("Batch %5d: L_{rec.} = %10.7f; lambda_{decorr} L_{adv.} = %10.7f ; L_{disc.} = %10.7f " % (epoch, rec_metric, self.lambda_decorr*adv_metric, disc_metric))
+        print("Batch %5d: L_{rec.} = %10.7f; lambda_{decorr} L_{adv.} = %10.7f ; L_{adv,nom} = %10.7f ; L_{adv,sys} = %10.7f ; L_{disc.} = %10.7f " % (epoch, rec_metric, self.lambda_decorr*(adv_metric_nom + adv_metric_sys), adv_metric_nom, adv_metric_sys, disc_metric))
         self.save("%s/%s_enc_%d" % (network_dir, prefix, epoch), "%s/%s_dec_%d" % (network_dir, prefix, epoch), "%s/%s_adv_%d" % (network_dir, prefix, epoch), "%s/%s_disc_%d" % (network_dir, prefix, epoch))
       #gc.collect()
 
@@ -595,7 +601,8 @@ class AAE(object):
   def load_loss(self, filename):
     floss = h5py.File(filename)
     self.rec_loss_train = floss['rec_loss'][:]
-    self.adv_loss_train = floss['adv_loss'][:]
+    self.adv_loss_nom_train = floss['adv_nom_loss'][:]
+    self.adv_loss_sys_train = floss['adv_sys_loss'][:]
     self.disc_loss_train = floss['disc_loss'][:]
     self.n_iteration = len(self.disc_loss_train)*self.n_eval
     floss.close()
@@ -605,8 +612,8 @@ class AAE(object):
     fig, ax = plt.subplots(figsize=(10, 8))
     it = np.arange(0, self.n_iteration, self.n_eval)
     plt.plot(it, (self.rec_loss_train), linestyle = '-', color = 'r', label = 'Reconstruction')
-    plt.plot(it, (np.fabs(self.lambda_decorr*self.adv_loss_train)), linestyle = '-', color = 'b', label = 'Adversary')
-    plt.plot(it, (np.abs(self.rec_loss_train - self.lambda_decorr*self.adv_loss_train)), linestyle = '-', color = 'k', label = 'Rec. + adv.')
+    plt.plot(it, (np.fabs(self.lambda_decorr*(self.adv_loss_nom_train + self.adv_loss_sys_train))), linestyle = '-', color = 'b', label = 'Adversary')
+    plt.plot(it, (np.abs(self.rec_loss_train - self.lambda_decorr*(self.adv_loss_nom_train + self.adv_loss_sys_train))), linestyle = '-', color = 'k', label = 'Rec. + adv.')
     plt.plot(it, np.abs(self.disc_loss_train), linestyle = '-', color = 'g', label = 'Discriminator')
 
     #plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
