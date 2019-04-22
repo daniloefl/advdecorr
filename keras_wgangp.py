@@ -17,6 +17,7 @@ mpl.use('Agg')
 
 # numerical library
 import numpy as np
+import pandas as pd
 import h5py
 
 #import plaidml.keras
@@ -32,13 +33,14 @@ import keras as K
 from utils import LayerNormalization
 
 def smoothen(y):
+  return y
   N = 10
   box = np.ones(N)/float(N)
   return np.convolve(y, box, mode = 'same')
 
-def gradient_penalty_loss(y_true, y_pred, critic, discriminator, input1, input2, N):
-  d1 = discriminator(input1)
-  d2 = discriminator(input2)
+def gradient_penalty_loss(y_true, y_pred, critic, disc, input1, input2, N):
+  d1 = disc(input1)
+  d2 = disc(input2)
   diff = d2 - d1
   epsilon = K.backend.random_uniform_variable(shape=[N, 1], low = 0., high = 1.)
   interp_input = d1 + (epsilon*diff)
@@ -92,7 +94,7 @@ class WGANGP(object):
   4) Go back to 2 and repeat this n_iteration times.
   '''
 
-  def __init__(self, n_iteration = 1050, n_pretrain = 200, n_critic = 5,
+  def __init__(self, n_iteration = 1050, n_pretrain = 0, n_critic = 5,
                n_batch = 32,
                lambda_decorr = 1.0,
                lambda_gp = 10.0,
@@ -119,7 +121,7 @@ class WGANGP(object):
     self.n_eval = n_eval
     self.no_critic = no_critic
     self.critic = None
-    self.discriminator = None
+    self.disc = None
 
   '''
     Create critic network.
@@ -127,20 +129,20 @@ class WGANGP(object):
   def create_critic(self):
     self.critic_input = Input(shape = (1,), name = 'critic_input')
     xc = self.critic_input
-    xc = Dense(200, activation = None, name = "adv_0")(xc)
+    xc = Dense(200, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = Dense(100, activation = None, name = "adv_1")(xc)
-    xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = LayerNormalization()(xc)
-    xc = Dense(50, activation = None, name = "adv_2")(xc)
+    xc = Dense(100, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = LayerNormalization()(xc)
-    xc = Dense(40, activation = None, name = "adv_3")(xc)
+    xc = Dense(50, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = LayerNormalization()(xc)
-    xc = Dense(10, activation = None, name = "adv_4")(xc)
+    xc = Dense(40, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = Dense(1, activation = None, name = "adv_7")(xc)
+    xc = LayerNormalization()(xc)
+    xc = Dense(10, activation = None)(xc)
+    xc = K.layers.LeakyReLU(0.2)(xc)
+    xc = Dense(1, activation = None)(xc)
     self.critic = Model(self.critic_input, xc, name = "critic")
     self.critic.trainable = True
     self.critic.compile(loss = wasserstein_loss,
@@ -149,30 +151,30 @@ class WGANGP(object):
   '''
   Create discriminator network.
   '''
-  def create_discriminator(self):
-    self.discriminator_input = Input(shape = (self.n_dimensions,), name = 'discriminator_input')
+  def create_disc(self):
+    self.disc_input = Input(shape = (self.n_dimensions,), name = 'disc_input')
 
-    xd = self.discriminator_input
-    xd = Dense(200, activation = None, name = "discriminator_1")(xd)
+    xd = self.disc_input
+    xd = Dense(200, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = Dense(100, activation = None, name = "discriminator_2")(xd)
-    xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = LayerNormalization()(xd)
-    xd = Dense(50, activation = None, name = "discriminator_4")(xd)
+    xd = Dense(100, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = LayerNormalization()(xd)
-    xd = Dense(40, activation = None, name = "discriminator_5")(xd)
+    xd = Dense(50, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = LayerNormalization()(xd)
-    xd = Dense(30, activation = None, name = "discriminator_6")(xd)
+    xd = Dense(40, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = LayerNormalization()(xd)
-    xd = Dense(20, activation = None, name = "discriminator_7")(xd)
+    xd = Dense(30, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = Dense(1, activation = 'sigmoid', name = "discriminator_8")(xd)
-    self.discriminator = Model(self.discriminator_input, xd, name = "discriminator")
-    self.discriminator.trainable = True
-    self.discriminator.compile(loss = K.losses.binary_crossentropy, optimizer = Adam(lr = 1e-3), metrics = [])
+    xd = LayerNormalization()(xd)
+    xd = Dense(20, activation = None)(xd)
+    xd = K.layers.LeakyReLU(0.2)(xd)
+    xd = Dense(1, activation = 'sigmoid')(xd)
+    self.disc = Model(self.disc_input, xd, name = "disc")
+    self.disc.trainable = True
+    self.disc.compile(loss = K.losses.binary_crossentropy, optimizer = Adam(lr = 1e-3), metrics = [])
 
   '''
   Create all networks.
@@ -180,10 +182,10 @@ class WGANGP(object):
   def create_networks(self):
     if not self.critic:
       self.create_critic()
-    if not self.discriminator:
-      self.create_discriminator()
+    if not self.disc:
+      self.create_disc()
 
-    self.discriminator.trainable = False
+    self.disc.trainable = False
     self.critic.trainable = True
 
     self.dummy_input = Input(shape = (1,), name = 'dummy_input')
@@ -193,50 +195,41 @@ class WGANGP(object):
     self.syst_input_w = Input(shape = (1,), name = 'syst_input_w')
 
     from functools import partial
-    partial_gp_loss = partial(gradient_penalty_loss, critic = self.critic, discriminator = self.discriminator, input1 = self.nominal_input, input2 = self.syst_input, N = self.n_batch)
+    partial_gp_loss = partial(gradient_penalty_loss, critic = self.critic, disc = self.disc, input1 = self.nominal_input, input2 = self.syst_input, N = self.n_batch)
 
-    wdistance = K.layers.Subtract()([K.layers.Multiply()([self.critic(self.discriminator(self.nominal_input)), self.nominal_input_w]),
-                                     K.layers.Multiply()([self.critic(self.discriminator(self.syst_input)), self.syst_input_w])])
-    wdistance_nom = K.layers.Multiply()([self.critic(self.discriminator(self.nominal_input)), self.nominal_input_w])
+    wdistance = K.layers.Subtract()([K.layers.Multiply()([self.critic(self.disc(self.nominal_input)), self.nominal_input_w]),
+                                     K.layers.Multiply()([self.critic(self.disc(self.syst_input)), self.syst_input_w])])
+    wdistance_nom = K.layers.Multiply()([self.critic(self.disc(self.nominal_input)), self.nominal_input_w])
 
     self.disc_fixed_critic = Model([self.nominal_input, self.syst_input, self.dummy_input, self.nominal_input_w, self.syst_input_w],
                                    [wdistance, self.dummy_input],
                                    name = "disc_fixed_critic")
     self.disc_fixed_critic.compile(loss = [wasserstein_loss, partial_gp_loss],
                                    loss_weights = [self.lambda_decorr, self.lambda_gp],
-                                   #optimizer = RMSprop(lr = 1e-4), metrics = [])
                                    optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
-    self.discriminator.trainable = True
+    self.disc.trainable = True
     self.critic.trainable = False
-    self.disc_critic_fixed = Model([self.discriminator_input, self.nominal_input, self.syst_input, self.nominal_input_w, self.syst_input_w],
-                                   [self.discriminator(self.discriminator_input), wdistance],
+    self.disc_critic_fixed = Model([self.disc_input, self.nominal_input, self.syst_input, self.nominal_input_w, self.syst_input_w],
+                                   [self.disc(self.disc_input), wdistance],
                                    name = "disc_critic_fixed")
     self.disc_critic_fixed.compile(loss = [K.losses.binary_crossentropy, wasserstein_loss],
                                    loss_weights = [1.0, -self.lambda_decorr],
-                                   #optimizer = RMSprop(lr = 1e-4), metrics = [])
                                    optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
-    #self.disc_critic_fixed = Model([self.discriminator_input, self.nominal_input, self.nominal_input_w],
-    #                               [self.discriminator(self.discriminator_input), wdistance_nom],
-    #                               name = "disc_critic_fixed")
-    #self.disc_critic_fixed.compile(loss = [K.losses.binary_crossentropy, wasserstein_loss],
-    #                               loss_weights = [1.0, -self.lambda_decorr],
-    #                               #optimizer = RMSprop(lr = 1e-4), metrics = [])
-    #                               optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
 
     print("Signal/background discriminator:")
-    self.discriminator.trainable = True
-    self.discriminator.summary()
+    self.disc.trainable = True
+    self.disc.summary()
     print("Critic:")
     self.critic.trainable = True
     self.critic.summary()
     print("Disc. against critic:")
-    self.discriminator.trainable = True
+    self.disc.trainable = True
     self.critic.trainable = False
     self.disc_critic_fixed.summary()
     print("Critic against disc.:")
-    self.discriminator.trainable = False
+    self.disc.trainable = False
     self.critic.trainable = True
     self.disc_fixed_critic.summary()
 
@@ -244,12 +237,11 @@ class WGANGP(object):
   '''
   '''
   def read_input_from_files(self, filename = 'input_preprocessed.h5'):
-    self.file = h5py.File(filename)
-    self.n_dimensions = self.file['train'].shape[1]-3
-    self.col_signal = 0
-    self.col_syst = 1
-    self.col_weight = 2
-    self.col_data = 3
+    self.file = pd.HDFStore(filename, 'r')
+    self.n_dimensions = self.file['df'].shape[1]-3
+    self.col_signal = self.file['df'].columns.get_loc('sample')
+    self.col_syst = self.file['df'].columns.get_loc('syst')
+    self.col_weight = self.file['df'].columns.get_loc('weight')
 
   '''
   Generate test sample.
@@ -258,10 +250,10 @@ class WGANGP(object):
   def prepare_input(self, filename = 'input_preprocessed.h5', adjust_signal_weights = True, set_unit_weights = True):
     # make input file
     N = 10000
-    self.file = h5py.File(filename, 'w')
+    self.file = pd.HDFStore(filename, 'w')
     x = {}
+    all_data = np.zeros(shape = (0, 3+2))
     for t in ['train', 'test']:
-      all_data = np.zeros(shape = (0, 3+2))
       for s in [0, 1]:
         signal = np.random.normal(loc = -1.0 + s*0.1, scale = 0.5 + s*0.1, size = (N, 2))
         bkg    = np.random.normal(loc =  1.0 - s*0.1, scale = 0.5 - s*0.1, size = (N, 2))
@@ -273,21 +265,29 @@ class WGANGP(object):
         all_data = np.concatenate((all_data, add_all_data), axis = 0)
       print('Checking nans in %s' % t)
       self.check_nans(all_data)
-      self.file.create_dataset(t, data = all_data)
-      self.file[t].attrs['columns'] = ['signal', 'syst', 'weight', '0', '1']
+    df = pd.DataFrame(all_data, columns = ['sample', 'syst', 'weight', 'A', 'B'])
+    self.file.put('df', df, format = 'table', data_columns = True)
 
-      signal = all_data[:, 0] == 1
-      bkg = all_data[:, 0] == 0
-      syst = all_data[:, 1] == 1
-      nominal = all_data[:, 1] == 0
-      self.file.create_dataset('%s_%s' % (t, 'bkg'), data = bkg)
-      self.file.create_dataset('%s_%s' % (t, 'signal'), data = signal)
-      self.file.create_dataset('%s_%s' % (t, 'syst'), data = syst)
-      self.file.create_dataset('%s_%s' % (t, 'nominal'), data = nominal)
-
+    for t in ['train', 'test']:
+      if t == 'train':
+        part = pd.DataFrame( (df.index < 4*N) )
+        bkg = pd.DataFrame( ((df['sample'] == 0) & (df.index < 4*N)))
+        sig = pd.DataFrame( ((df['sample'] == 1) & (df.index < 4*N)))
+        syst = pd.DataFrame( ((df['syst'] == 1) & (df.index < 4*N)))
+        nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index < 4*N)))
+      else:
+        part = pd.DataFrame( (df.index >= 4*N) )
+        bkg = pd.DataFrame( ((df['sample'] == 0) & (df.index >= 4*N)))
+        sig = pd.DataFrame( ((df['sample'] == 1) & (df.index >= 4*N)))
+        syst = pd.DataFrame( ((df['syst'] == 1) & (df.index >= 4*N)))
+        nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index >= 4*N)))
+      self.file.put('%s' % t, part, format = 'table')
+      self.file.put('%s_bkg' % t, bkg, format = 'table')
+      self.file.put('%s_sig'% t, sig, format = 'table')
+      self.file.put('%s_syst' % t, syst, format = 'table')
+      self.file.put('%s_nominal' % t, nominal, format = 'table')
 
     self.file.close()
-
 
   def check_nans(self, x):
     print("Dump of NaNs:")
@@ -333,10 +333,10 @@ class WGANGP(object):
     import matplotlib.pyplot as plt
     import seaborn as sns
     out_signal = []
-    for x,w,y in self.get_batch(origin = 'test', signal = True): out_signal.extend(self.discriminator.predict(x))
+    for x,w,y in self.get_batch(origin = 'test', signal = True): out_signal.extend(self.disc.predict(x))
     out_signal = np.array(out_signal)
     out_bkg = []
-    for x,w,y in self.get_batch(origin = 'test', signal = False): out_bkg.extend(self.discriminator.predict(x))
+    for x,w,y in self.get_batch(origin = 'test', signal = False): out_bkg.extend(self.disc.predict(x))
     out_bkg = np.array(out_bkg)
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111)
@@ -357,17 +357,17 @@ class WGANGP(object):
     import seaborn as sns
 
     out_signal = []
-    for x,w,y in self.get_batch(origin = 'test', signal = True, syst = False): out_signal.extend(self.discriminator.predict(x))
+    for x,w,y in self.get_batch(origin = 'test', signal = True, syst = False): out_signal.extend(self.disc.predict(x))
     out_signal = np.array(out_signal)
     out_bkg = []
-    for x,w,y in self.get_batch(origin = 'test', signal = False, syst = False): out_bkg.extend(self.discriminator.predict(x))
+    for x,w,y in self.get_batch(origin = 'test', signal = False, syst = False): out_bkg.extend(self.disc.predict(x))
     out_bkg = np.array(out_bkg)
 
     out_signal_s = []
-    for x,w,y in self.get_batch(origin = 'test', signal = True, syst = True): out_signal_s.extend(self.discriminator.predict(x))
+    for x,w,y in self.get_batch(origin = 'test', signal = True, syst = True): out_signal_s.extend(self.disc.predict(x))
     out_signal_s = np.array(out_signal_s)
     out_bkg_s = []
-    for x,w,y in self.get_batch(origin = 'test', signal = False, syst = True): out_bkg_s.extend(self.discriminator.predict(x))
+    for x,w,y in self.get_batch(origin = 'test', signal = False, syst = True): out_bkg_s.extend(self.disc.predict(x))
     out_bkg_s = np.array(out_bkg_s)
 
     Nbins = 20
@@ -452,10 +452,10 @@ class WGANGP(object):
     import seaborn as sns
     # use get_continuour_batch to read directly from the file
     out_syst_nominal = []
-    for x,w,y in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.critic.predict(self.discriminator.predict(x)))
+    for x,w,y in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.critic.predict(self.disc.predict(x)))
     out_syst_nominal = np.array(out_syst_nominal)
     out_syst_var = []
-    for x,w,y in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.critic.predict(self.discriminator.predict(x)))
+    for x,w,y in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.critic.predict(self.disc.predict(x)))
     out_syst_var = np.array(out_syst_var)
     bins = np.linspace(np.amin(out_syst_nominal), np.amax(out_syst_nominal), 10)
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -471,46 +471,47 @@ class WGANGP(object):
     plt.close("all")
 
   def get_batch(self, origin = 'train', **kwargs):
-    filt = np.ones(self.file[origin].shape[0], dtype = 'bool')
+    filt = np.ones(self.file['df'].shape[0], dtype = 'bool')
     if 'syst' in kwargs and not kwargs['syst']:
-      filt = filt & self.file['%s_%s' % (origin, 'nominal')][:]
+      filt = filt & self.file['%s_%s' % (origin, 'nominal')].iloc[:, 0].values
     elif 'syst' in kwargs and kwargs['syst']:
-      filt = filt & self.file['%s_%s' % (origin, 'syst')][:]
+      filt = filt & self.file['%s_%s' % (origin, 'syst')].iloc[:,0].values
 
     if 'signal' in kwargs and kwargs['signal']:
-      filt = filt & self.file['%s_%s' % (origin, 'signal')][:]
+      filt = filt & self.file['%s_%s' % (origin, 'sig')].iloc[:,0].values
     elif 'signal' in kwargs and not kwargs['signal']:
-      filt = filt & self.file['%s_%s' % (origin, 'bkg')][:]
+      filt = filt & self.file['%s_%s' % (origin, 'bkg')].iloc[:,0].values
 
     filt = np.where(filt)[0]
 
     rows = np.random.permutation(filt)
     N = len(rows)
 
-    for i in range(0, int(N/self.n_batch)):
-      r = rows[i*self.n_batch : (i+1)*self.n_batch]
-      r = sorted(r)
-      x_batch = self.file[origin][r, self.col_data:]
-      x_batch_w = self.file[origin][r, self.col_weight]
-      y_batch = self.file[origin][r, self.col_signal]
-      yield x_batch, x_batch_w, y_batch
-
-  def get_batch_train(self, syst):
-    if not syst:
-      filt = self.file['%s_%s' % ('train', 'nominal')][:]
-    else:
-      filt = self.file['%s_%s' % ('train', 'syst')][:]
-    filt = np.where(filt)[0]
-
-    rows = np.random.permutation(filt)
-    N = len(rows)
-
-    r = rows[0 : self.n_batch]
-    r = sorted(r)
-    x_batch = self.file['train'][r, self.col_data:]
-    x_batch_w = self.file['train'][r, self.col_weight]
-    y_batch = self.file['train'][r, self.col_signal]
-    return x_batch, x_batch_w, y_batch
+    if 'noStop' in kwargs and kwargs['noStop']: # do it forever: whenever the for loop runs out, reset it
+      i = 0
+      while True:
+        r = rows[i*self.n_batch : (i+1)*self.n_batch]
+        r = sorted(r)
+        df = self.file.select('df', where = 'index = r')
+        x_batch = df.drop(['weight', 'sample', 'syst'], axis = 1)
+        x_batch_w = df.loc[:, 'weight']
+        y_batch = df.loc[:, 'sample']
+        s_batch = df.loc[:, 'syst']
+        yield x_batch, x_batch_w, y_batch, s_batch
+        i += 1
+        if i >= int(N/self.n_batch):
+          rows = np.random.permutation(filt)
+          i = 0
+    else: # do it once over the entire set
+      for i in range(0, int(N/self.n_batch)):
+        r = rows[i*self.n_batch : (i+1)*self.n_batch]
+        r = sorted(r)
+        df = self.file.select('df', where = 'index = r')
+        x_batch = df.drop(['weight', 'sample', 'syst'], axis = 1)
+        x_batch_w = df.loc[:, 'weight']
+        y_batch = df.loc[:, 'sample']
+        s_batch = df.loc[:, 'syst']
+        yield x_batch, x_batch_w, y_batch, s_batch
 
   def train(self, prefix, result_dir, network_dir):
     # algorithm:
@@ -523,81 +524,70 @@ class WGANGP(object):
     self.critic_loss_sys_train = np.array([])
     self.disc_loss_train = np.array([])
     positive_y = np.ones(self.n_batch)
-    negative_y = np.ones(self.n_batch)*(-1)
+    iter_nom = self.get_batch(origin = 'train', syst = False, noStop = True)
+    iter_sys = self.get_batch(origin = 'train', syst = True, noStop = True)
+    iter_test_nom = self.get_batch(origin = 'test', syst = False, noStop = True)
+    iter_test_sys = self.get_batch(origin = 'test', syst = True, noStop = True)
     for epoch in range(self.n_iteration):
       if self.no_critic:
-        x_batch_nom, x_batch_nom_w, y_batch_nom = self.get_batch_train(syst = False)
-        self.discriminator.trainable = True
-        self.discriminator.train_on_batch(x_batch_nom, y_batch_nom, sample_weight = x_batch_nom_w)
+        x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
+        self.disc.trainable = True
+        self.disc.train_on_batch(x_batch_nom, y_batch_nom, sample_weight = x_batch_nom_w)
 
       if not self.no_critic:
         # step 0 - pretraining
         if epoch < self.n_pretrain:
-          x_batch_nom, x_batch_nom_w, y_batch_nom = self.get_batch_train(syst = False)
-          self.discriminator.trainable = True
-          self.discriminator.train_on_batch(x_batch_nom, y_batch_nom, sample_weight = x_batch_nom_w) # reconstruct input in auto-encoder
+          x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
+          self.disc.trainable = True
+          self.disc.train_on_batch(x_batch_nom, y_batch_nom, sample_weight = x_batch_nom_w) # reconstruct input in auto-encoder
 
         if epoch >= self.n_pretrain:
           # step critic
           n_critic = self.n_critic
-          if epoch < 2*self.n_pretrain:
-            n_critic = 5*self.n_critic
           for k in range(0, n_critic):
-            x_batch_nom, x_batch_nom_w, y_batch_nom = self.get_batch_train(syst = False)
-            x_batch_syst, x_batch_syst_w, y_batch_syst = self.get_batch_train(syst = True)
+            x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
+            x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(iter_sys)
 
-            self.discriminator.trainable = False
+            self.disc.trainable = False
             self.critic.trainable = True
             self.disc_fixed_critic.train_on_batch([x_batch_nom, x_batch_syst, positive_y, x_batch_nom_w, x_batch_syst_w],
                                                   [positive_y, positive_y],
                                                   sample_weight = [positive_y, positive_y])
 
           # step generator
-          x_batch_nom, x_batch_nom_w, y_batch_nom = self.get_batch_train(syst = False)
-          x_batch_syst, x_batch_syst_w, y_batch_syst = self.get_batch_train(syst = True)
+          x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
+          x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(iter_sys)
 
-          self.discriminator.trainable = True
+          self.disc.trainable = True
           self.critic.trainable = False
           self.disc_critic_fixed.train_on_batch([x_batch_nom, x_batch_nom, x_batch_syst, x_batch_nom_w, x_batch_syst_w],
                                                 [y_batch_nom, positive_y],
                                                 sample_weight = [x_batch_nom_w, positive_y])
-          #self.disc_critic_fixed.train_on_batch([x_batch_nom, x_batch_nom, x_batch_nom_w],
-          #                                      [y_batch_nom, positive_y],
-          #                                      sample_weight = [x_batch_nom_w, positive_y])
   
       if epoch % self.n_eval == 0:
         disc_metric = 0
         critic_metric_nom = 0
         critic_metric_syst = 0
-        c = 0.0
-        for x,w,y in self.get_batch(origin = 'test', syst = False):
-          disc_metric += self.discriminator.evaluate(x, y, sample_weight = w, verbose = 0)
-          if epoch >= self.n_pretrain and not self.no_critic:
-            critic_metric_nom += np.sum(self.critic.predict(self.discriminator.predict(x, verbose = 0))*w)/np.sum(w)
-          c += 1.0
-        disc_metric /= c
-        critic_metric_nom /= c
+        x,w,y,s = next(iter_test_nom)
+        disc_metric += self.disc.evaluate(x, y, sample_weight = w, verbose = 0)
         if epoch >= self.n_pretrain and not self.no_critic:
-          c = 0.0
-          for x_s,w_s,y_s in self.get_batch(origin = 'test', syst = True):
-            critic_metric_syst += np.sum(self.critic.predict(self.discriminator.predict(x_s, verbose = 0))*w_s)/np.sum(w_s)
-            c += 1.0
-          critic_metric_syst /= c
+          critic_metric_nom += np.sum(self.critic.predict(self.disc.predict(x, verbose = 0))*w)/np.sum(w)
+        if epoch >= self.n_pretrain and not self.no_critic:
+          x,w,y,s = next(iter_test_sys)
+          critic_metric_syst += np.sum(self.critic.predict(self.disc.predict(x, verbose = 0))*w)/np.sum(w)
         critic_metric = critic_metric_nom - critic_metric_syst
         if critic_metric == 0: critic_metric = 1e-20
 
         critic_gradient_penalty = 0
         if epoch >= self.n_pretrain and not self.no_critic:
-          for k in range(0, self.n_critic):
-            x_batch_nom, x_batch_nom_w, y_batch_nom = self.get_batch_train(syst = False)
-            x_batch_syst, x_batch_syst_w, y_batch_syst = self.get_batch_train(syst = True)
+          x,w,y,s = next(iter_test_nom)
+          xs,ws,ys,ss = next(iter_test_sys)
 
-            self.discriminator.trainable = False
-            self.critic.trainable = True
-            critic_gradient_penalty += self.disc_fixed_critic.evaluate([x_batch_nom, x_batch_syst, positive_y, x_batch_nom_w, x_batch_syst_w],
-                                                                       [positive_y, positive_y],
-                                                                       sample_weight = [positive_y, positive_y], verbose = 0)[-1]
-          critic_gradient_penalty /= float(self.n_critic)
+          self.disc.trainable = False
+          self.critic.trainable = True
+          critic_gradient_penalty += self.disc_fixed_critic.evaluate([x, xs, positive_y, w, ws],
+                                                                     [positive_y, positive_y],
+                                                                     sample_weight = [positive_y, positive_y], verbose = 0)[-1]
         if critic_gradient_penalty == 0: critic_gradient_penalty = 1e-20
 
         self.critic_loss_train = np.append(self.critic_loss_train, [critic_metric])
@@ -614,7 +604,7 @@ class WGANGP(object):
         floss.close()
 
         print("Batch %5d: L_{disc. only} = %10.7f; - lambda_{decorr} L_{critic} = %10.7f ; L_{critic,nom} = %10.7f ; L_{critic,sys} = %10.7f ; lambda_{gp} (|grad C| - 1)^2 = %10.7f" % (epoch, disc_metric, -self.lambda_decorr*critic_metric, critic_metric_nom, critic_metric_syst, self.lambda_gp*critic_gradient_penalty))
-        self.save("%s/%s_discriminator_%d" % (network_dir, prefix, epoch), "%s/%s_critic_%d" % (network_dir, prefix, epoch))
+        self.save("%s/%s_disc_%d" % (network_dir, prefix, epoch), "%s/%s_critic_%d" % (network_dir, prefix, epoch))
       #gc.collect()
 
     print("============ End of training ===============")
@@ -633,17 +623,12 @@ class WGANGP(object):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(10, 8))
     it = np.arange(0, self.n_iteration, self.n_eval)
-    plt.plot(it, (self.disc_loss_train), linestyle = ':', color = 'r')
-    plt.plot(it, (np.fabs(-self.lambda_decorr*self.critic_loss_train)), linestyle = ':', color = 'b')
-    plt.plot(it, (self.lambda_gp*self.critic_gp_loss_train), linestyle = ':', color = 'grey')
-    plt.plot(it, (np.abs(self.disc_loss_train - self.lambda_decorr*np.abs(self.critic_loss_train))), linestyle = ':', color = 'k')
-
-    plt.plot(it, smoothen(self.disc_loss_train), linestyle = '-', color = 'r', label = r'$\mathcal{L}_{\mathrm{disc}}$')
-    plt.plot(it, smoothen(np.fabs(-self.lambda_decorr*self.critic_loss_train)), linestyle = '-', color = 'b', label = r' | $\lambda_{\mathrm{decorr}} \mathcal{L}_{\mathrm{critic}} |$')
-    plt.plot(it, smoothen(self.lambda_gp*self.critic_gp_loss_train), linestyle = '-', color = 'grey', label = r'$\lambda_{\mathrm{gp}} (||\nabla_{\hat{x}} C(\hat{x})||_{2} - 1)^2$')
-    plt.plot(it, smoothen(np.abs(self.disc_loss_train - self.lambda_decorr*np.abs(self.critic_loss_train))), linestyle = '-', color = 'k', label = r'$\mathcal{L}_{\mathrm{disc}} - \lambda_{\mathrm{decorr}} |\mathcal{L}_{\mathrm{critic}}$|')
-    plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
-    plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of critic bootstrap')
+    plt.plot(it, (self.disc_loss_train), linestyle = '-', color = 'r', label = r'$\mathcal{L}_{\mathrm{disc}}$')
+    plt.plot(it, (np.fabs(-self.lambda_decorr*self.critic_loss_train)), linestyle = '-', color = 'b', label = r' | $\lambda_{\mathrm{decorr}} \mathcal{L}_{\mathrm{critic}} |$')
+    plt.plot(it, (self.lambda_gp*self.critic_gp_loss_train), linestyle = '-', color = 'grey', label = r'$\lambda_{\mathrm{gp}} (||\nabla_{\hat{x}} C(\hat{x})||_{2} - 1)^2$')
+    plt.plot(it, (np.abs(self.disc_loss_train - self.lambda_decorr*np.abs(self.critic_loss_train))), linestyle = '-', color = 'k', label = r'$\mathcal{L}_{\mathrm{disc}} - \lambda_{\mathrm{decorr}} |\mathcal{L}_{\mathrm{critic}}$|')
+    if self.n_pretrain > 0:
+      plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
     if nnTaken > 0:
       plt.axvline(x = nnTaken, color = 'r', linestyle = '--', label = 'Configuration taken for further analysis')
     ax.set(xlabel='Batches', ylabel='Loss', title='Training evolution');
@@ -661,8 +646,8 @@ class WGANGP(object):
     plt.plot(it, (-fac*self.critic_loss_sys_train), linestyle = ':', color = 'c')
     plt.plot(it, smoothen(fac*self.critic_loss_nom_train), linestyle = '-', color = 'g', label = r' $ %4.2f \mathcal{L}_{\mathrm{critic,nom}}$' % (fac) )
     plt.plot(it, smoothen(-fac*self.critic_loss_sys_train), linestyle = '-', color = 'c', label = r' $ %4.2f \mathcal{L}_{\mathrm{critic,sys}}$' % (-fac) )
-    plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
-    plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of critic bootstrap')
+    if self.n_pretrain > 0:
+      plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
     if nnTaken > 0:
       plt.axvline(x = nnTaken, color = 'r', linestyle = '--', label = 'Configuration taken for further analysis')
     ax.set(xlabel='Batches', ylabel='Loss', title='Training evolution');
@@ -672,26 +657,26 @@ class WGANGP(object):
     plt.savefig(filename_crit)
     plt.close(fig)
   
-  def save(self, discriminator_filename, critic_filename):
+  def save(self, disc_filename, critic_filename):
     critic_json = self.critic.to_json()
     with open("%s.json" % critic_filename, "w") as json_file:
       json_file.write(critic_json)
     self.critic.save_weights("%s.h5" % critic_filename)
 
-    discriminator_json = self.discriminator.to_json()
-    with open("%s.json" % discriminator_filename, "w") as json_file:
-      json_file.write(discriminator_json)
-    self.discriminator.save_weights("%s.h5" % discriminator_filename)
+    disc_json = self.disc.to_json()
+    with open("%s.json" % disc_filename, "w") as json_file:
+      json_file.write(disc_json)
+    self.disc.save_weights("%s.h5" % disc_filename)
 
   '''
   Load stored network
   '''
-  def load(self, discriminator_filename, critic_filename):
-    json_file = open('%s.json' % discriminator_filename, 'r')
+  def load(self, disc_filename, critic_filename):
+    json_file = open('%s.json' % disc_filename, 'r')
     loaded_model_json = json_file.read()
     json_file.close()
-    self.discriminator = K.models.model_from_json(loaded_model_json, custom_objects={'LayerNormalization': LayerNormalization})
-    self.discriminator.load_weights("%s.h5" % discriminator_filename)
+    self.disc = K.models.model_from_json(loaded_model_json, custom_objects={'LayerNormalization': LayerNormalization})
+    self.disc.load_weights("%s.h5" % disc_filename)
 
     json_file = open('%s.json' % critic_filename, 'r')
     loaded_model_json = json_file.read()
@@ -700,9 +685,9 @@ class WGANGP(object):
     self.critic.load_weights("%s.h5" % critic_filename)
 
     self.critic_input = K.layers.Input(shape = (1,), name = 'critic_input')
-    self.discriminator_input = K.layers.Input(shape = (self.n_dimensions,), name = 'discriminator_input')
+    self.disc_input = K.layers.Input(shape = (self.n_dimensions,), name = 'disc_input')
 
-    self.discriminator.compile(loss = K.losses.binary_crossentropy, optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
+    self.disc.compile(loss = K.losses.binary_crossentropy, optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
     self.critic.compile(loss = wasserstein_loss,
                         optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
     self.create_networks()
@@ -783,16 +768,16 @@ def main():
     network.load_loss("%s/%s_loss.h5" % (args.result_dir, prefix))
     network.plot_train_metrics("%s/%s_training.pdf" % (args.result_dir, prefix), int(trained))
   elif args.mode == 'plot_disc':
-    network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_critic_%s" % (args.network_dir, prefix, trained))
+    network.load("%s/%s_disc_%s" % (args.network_dir, prefix, trained), "%s/%s_critic_%s" % (args.network_dir, prefix, trained))
     network.plot_discriminator_output("%s/%s_discriminator_output.pdf" % (args.result_dir, prefix))
   elif args.mode == 'plot_critic':
-    network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_critic_%s" % (args.network_dir, prefix, trained))
+    network.load("%s/%s_disc_%s" % (args.network_dir, prefix, trained), "%s/%s_critic_%s" % (args.network_dir, prefix, trained))
     network.plot_critic_output("%s/%s_critic_output.pdf" % (args.result_dir, prefix))
   elif args.mode == 'plot_input':
     network.plot_input_correlations("%s/%s_corr.pdf" % (args.result_dir, prefix))
     network.plot_scatter_input(0, 1, "%s/%s_scatter_%d_%d.png" % (args.result_dir, prefix, 0, 1))
   elif args.mode == 'plot_output':
-    network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_critic_%s" % (args.network_dir, prefix, trained))
+    network.load("%s/%s_disc_%s" % (args.network_dir, prefix, trained), "%s/%s_critic_%s" % (args.network_dir, prefix, trained))
     network.plot_discriminator_output_syst("%s/%s_discriminator_output_syst.pdf" % (args.result_dir, prefix))
   else:
     print('Option mode not understood.')
