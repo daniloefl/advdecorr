@@ -300,8 +300,8 @@ class WGANGP(object):
     import matplotlib.pyplot as plt
     import seaborn as sns
 
-    nominal = self.file['test'][:, self.col_syst] == 0
-    x = self.file['test'][nominal, :][:, self.col_data:]
+    nominal = self.file['test_nominal'].iloc[:, 0]
+    x = self.file['df'][nominal].drop(['sample', 'syst', 'weight'], axis = 1)
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111)
     sns.heatmap(np.corrcoef(x, rowvar = 0),
@@ -317,11 +317,11 @@ class WGANGP(object):
     import seaborn as sns
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111)
-    nominal = self.file['test'][:, self.col_syst] == 0
-    x = self.file['test'][nominal, :][:, (self.col_data+var1, self.col_data+var2)]
-    y = self.file['test'][nominal, :][:, self.col_signal]
-    g = sns.scatterplot(x = x[:, 0], y = x[:, 1], hue = y,
-                        hue_order = [0, 1], markers = ["^", "v"], legend = "brief", ax = ax)
+    nominal = self.file['test_nominal'].iloc[:, 0]
+    x = self.file['df'][nominal].loc[:, (var1, var2)]
+    y = self.file['df'][nominal].loc[:, 'sample']
+    g = sns.scatterplot(x = x.loc[:, var1], y = x.loc[:, var2], hue = y,
+                        hue_order = [var1, var2], markers = ["^", "v"], legend = "brief", ax = ax)
     #ax.legend(handles = ax.lines[::len(x)+1], labels = ["Background", "Signal"])
     g.axes.get_legend().texts[0] = "Background"
     g.axes.get_legend().texts[1] = "Signal"
