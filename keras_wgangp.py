@@ -734,12 +734,17 @@ def main():
   # read it from disk
   network.read_input_from_files(filename = args.input)
 
+  var = list(network.file['df'].columns.values)
+  var.remove('syst')
+  var.remove('sample')
+  var.remove('weight')
+
   # when training make some debug plots and prepare the network
   if args.mode == 'train':
     print("Plotting correlations.")
     network.plot_input_correlations("%s/%s_corr.pdf" % (args.result_dir, prefix))
     print("Plotting scatter plots.")
-    network.plot_scatter_input(0, 1, "%s/%s_scatter_%d_%d.png" % (args.result_dir, prefix, 0, 1))
+    network.plot_scatter_input(var[0], var[1], "%s/%s_scatter_%d_%d.png" % (args.result_dir, prefix, 0, 1))
 
     # create network
     network.create_networks()
@@ -775,7 +780,7 @@ def main():
     network.plot_critic_output("%s/%s_critic_output.pdf" % (args.result_dir, prefix))
   elif args.mode == 'plot_input':
     network.plot_input_correlations("%s/%s_corr.pdf" % (args.result_dir, prefix))
-    network.plot_scatter_input(0, 1, "%s/%s_scatter_%d_%d.png" % (args.result_dir, prefix, 0, 1))
+    network.plot_scatter_input(var[0], var[1], "%s/%s_scatter_%d_%d.png" % (args.result_dir, prefix, 0, 1))
   elif args.mode == 'plot_output':
     network.load("%s/%s_disc_%s" % (args.network_dir, prefix, trained), "%s/%s_critic_%s" % (args.network_dir, prefix, trained))
     network.plot_discriminator_output_syst("%s/%s_discriminator_output_syst.pdf" % (args.result_dir, prefix))
