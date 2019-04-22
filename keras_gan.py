@@ -213,6 +213,7 @@ class GAN(object):
   :param adjust_signal_weights: If True, weights the signal by the ratio of signal to background weights, so that the training considers both equally.
   '''
   def prepare_input(self, filename = 'input_preprocessed.h5', adjust_signal_weights = True, set_unit_weights = True):
+    import sklearn.datasets
     # make input file
     N = 10000
     self.file = pd.HDFStore(filename, 'w')
@@ -220,12 +221,14 @@ class GAN(object):
     all_data = np.zeros(shape = (0, 3+2))
     for t in ['train', 'test']:
       for s in [0, 1]:
-        signal = np.random.normal(loc = -1.0 + s*0.1, scale = 0.5 + s*0.1, size = (N, 2))
-        bkg    = np.random.normal(loc =  1.0 - s*0.1, scale = 0.5 - s*0.1, size = (N, 2))
-        data   = np.append(signal, bkg, axis = 0)
-        data_t = np.append(np.ones(N), np.zeros(N))
-        data_w = np.append(np.ones(N), np.ones(N))
-        data_s = s*np.append(np.ones(N), np.ones(N))
+        #signal = np.random.normal(loc = -1.0 + s*0.1, scale = 0.5 + s*0.1, size = (N, 2))
+        #bkg    = np.random.normal(loc =  1.0 - s*0.1, scale = 0.5 - s*0.1, size = (N, 2))
+        #data   = np.append(signal, bkg, axis = 0)
+        #data_t = np.append(np.ones(N), np.zeros(N))
+        data, data_t = sklearn.datasets.make_moons(n_samples = 2*N, noise = 0.3 + 0.2*s)
+        data[:,0] += 0.5*s
+        data_w = np.ones(2*N)
+        data_s = s*np.ones(2*N)
         add_all_data = np.concatenate( (data_t[:,np.newaxis], data_s[:, np.newaxis], data_w[:,np.newaxis], data), axis=1)
         all_data = np.concatenate((all_data, add_all_data), axis = 0)
       print('Checking nans in %s' % t)
