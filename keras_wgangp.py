@@ -260,7 +260,7 @@ class WGANGP(object):
         #bkg    = np.random.normal(loc =  1.0 - s*0.1, scale = 0.5 - s*0.1, size = (N, 2))
         #data   = np.append(signal, bkg, axis = 0)
         #data_t = np.append(np.ones(N), np.zeros(N))
-        data, data_t = sklearn.datasets.make_moons(n_samples = 2*N, noise = 0.3 + 0.2*s)
+        data, data_t = sklearn.datasets.make_moons(n_samples = 2*N, noise = 0.1 + 0.05*s)
         data[:,0] += 0.5*s
         data_w = np.ones(2*N)
         data_s = s*np.ones(2*N)
@@ -321,10 +321,10 @@ class WGANGP(object):
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111)
     nominal = self.file['test_nominal'].iloc[:, 0]
-    x = self.file['df'][nominal].loc[:, (var1, var2)]
-    y = self.file['df'][nominal].loc[:, 'sample']
+    x = self.file['df'].loc[nominal, (var1, var2)]
+    y = self.file['df'].loc[nominal, 'sample']
     g = sns.scatterplot(x = x.loc[:, var1], y = x.loc[:, var2], hue = y,
-                        hue_order = [var1, var2], markers = ["^", "v"], legend = "brief", ax = ax)
+                        markers = ["^", "v"], legend = "brief", ax = ax)
     #ax.legend(handles = ax.lines[::len(x)+1], labels = ["Background", "Signal"])
     g.axes.get_legend().texts[0] = "Background"
     g.axes.get_legend().texts[1] = "Signal"
@@ -423,7 +423,7 @@ class WGANGP(object):
     ax[1].plot(bel, hr_bkg, color = 'b', linewidth = 2, drawstyle = 'steps-post')
     #ax[1].errorbar(bel, hr_bkg, yerr = er_bkg, color = 'b', drawstyle = 'steps-post')
 
-    ax[1].set_ylim([0.9, 1.1])
+    ax[1].set_ylim([0.75, 1.25])
     m = np.amax(np.concatenate( (h_signal, h_bkg, h_signal_s, h_bkg_s) ) )
     ax[0].set_ylim([0.0, 1.1*m])
 
