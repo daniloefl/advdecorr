@@ -420,7 +420,7 @@ class WGANGP(object):
     ax[1].plot(bel, hr_bkg, color = 'b', linewidth = 2, drawstyle = 'steps-post')
     #ax[1].errorbar(bel, hr_bkg, yerr = er_bkg, color = 'b', drawstyle = 'steps-post')
 
-    ax[1].set_ylim([0.0, 2.0])
+    ax[1].set_ylim([0.9, 1.1])
     m = np.amax(np.concatenate( (h_signal, h_bkg, h_signal_s, h_bkg_s) ) )
     ax[0].set_ylim([0.0, 1.1*m])
 
