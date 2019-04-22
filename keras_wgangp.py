@@ -94,7 +94,7 @@ class WGANGP(object):
   4) Go back to 2 and repeat this n_iteration times.
   '''
 
-  def __init__(self, n_iteration = 1050, n_pretrain = 0, n_critic = 5,
+  def __init__(self, n_iteration = 5050, n_pretrain = 0, n_critic = 5,
                n_batch = 32,
                lambda_decorr = 1.0,
                lambda_gp = 10.0,
