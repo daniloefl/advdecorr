@@ -569,12 +569,12 @@ class WGANGP(object):
         critic_metric_nom = 0
         critic_metric_syst = 0
         x,w,y,s = next(iter_test_nom)
-        disc_metric += self.disc.evaluate(x, y, sample_weight = w, verbose = 0)
+        disc_metric += self.disc.evaluate(x.values, y.values, sample_weight = w.values, verbose = 0)
         if epoch >= self.n_pretrain and not self.no_critic:
-          critic_metric_nom += np.sum(self.critic.predict(self.disc.predict(x, verbose = 0))*w)/np.sum(w)
+          critic_metric_nom += np.sum(self.critic.predict(self.disc.predict(x.values, verbose = 0))*w.values)/np.sum(w.values)
         if epoch >= self.n_pretrain and not self.no_critic:
           x,w,y,s = next(iter_test_sys)
-          critic_metric_syst += np.sum(self.critic.predict(self.disc.predict(x, verbose = 0))*w)/np.sum(w)
+          critic_metric_syst += np.sum(self.critic.predict(self.disc.predict(x.values, verbose = 0))*w.values)/np.sum(w.values)
         critic_metric = critic_metric_nom - critic_metric_syst
         if critic_metric == 0: critic_metric = 1e-20
 
@@ -585,7 +585,7 @@ class WGANGP(object):
 
           self.disc.trainable = False
           self.critic.trainable = True
-          critic_gradient_penalty += self.disc_fixed_critic.evaluate([x, xs, positive_y, w, ws],
+          critic_gradient_penalty += self.disc_fixed_critic.evaluate([x.values, xs.values, positive_y, w.values, ws.values],
                                                                      [positive_y, positive_y],
                                                                      sample_weight = [positive_y, positive_y], verbose = 0)[-1]
         if critic_gradient_penalty == 0: critic_gradient_penalty = 1e-20
