@@ -261,7 +261,7 @@ class WGANGP(object):
         #data   = np.append(signal, bkg, axis = 0)
         #data_t = np.append(np.ones(N), np.zeros(N))
         data, data_t = sklearn.datasets.make_moons(n_samples = 2*N, noise = 0.1 + 0.05*s)
-        data[:,0] += 0.5*s
+        data[:,0] += 0.2*s
         data_w = np.ones(2*N)
         data_s = s*np.ones(2*N)
         add_all_data = np.concatenate( (data_t[:,np.newaxis], data_s[:, np.newaxis], data_w[:,np.newaxis], data), axis=1)
@@ -373,7 +373,7 @@ class WGANGP(object):
     for x,w,y,s in self.get_batch(origin = 'test', signal = False, syst = True): out_bkg_s.extend(self.disc.predict(x))
     out_bkg_s = np.array(out_bkg_s)
 
-    Nbins = 20
+    Nbins = 5
     bins = np.linspace(0, 1.0, Nbins+1)
     h_signal, be = np.histogram(out_signal, bins = bins)
     e_signal, _ = np.histogram(out_signal**2, bins = bins)

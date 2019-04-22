@@ -70,7 +70,7 @@ class GAN(object):
   4) Go back to 2 and repeat this n_iteration times.
   '''
 
-  def __init__(self, n_iteration = 1050, n_pretrain = 0, n_adv = 5,
+  def __init__(self, n_iteration = 5050, n_pretrain = 0, n_adv = 5,
                n_batch = 32,
                lambda_decorr = 1.0,
                n_eval = 50,
@@ -119,7 +119,7 @@ class GAN(object):
     self.adv = Model(self.adv_input, xc, name = "adv")
     self.adv.trainable = True
     self.adv.compile(loss = K.losses.categorical_crossentropy,
-                        optimizer = Adam(lr = 1e-3), metrics = [])
+                        optimizer = Adam(lr = 1e-4), metrics = [])
 
   '''
   Create discriminator network.
@@ -147,7 +147,7 @@ class GAN(object):
     xd = Dense(1, activation = 'sigmoid')(xd)
     self.disc = Model(self.disc_input, xd, name = "disc")
     self.disc.trainable = True
-    self.disc.compile(loss = K.losses.binary_crossentropy, optimizer = Adam(lr = 1e-3), metrics = [])
+    self.disc.compile(loss = K.losses.binary_crossentropy, optimizer = Adam(lr = 1e-4), metrics = [])
 
   '''
   Create all networks.
@@ -170,7 +170,7 @@ class GAN(object):
     self.disc_fixed_adv.compile(loss = [K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
                                 loss_weights = [self.lambda_decorr, self.lambda_decorr],
                                 #optimizer = RMSprop(lr = 1e-4), metrics = [])
-                                optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
+                                optimizer = Adam(lr = 1e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
     self.disc.trainable = True
     self.adv.trainable = False
@@ -180,7 +180,7 @@ class GAN(object):
     self.disc_adv_fixed.compile(loss = [K.losses.binary_crossentropy, K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
                                    loss_weights = [1.0, -self.lambda_decorr, -self.lambda_decorr],
                                    #optimizer = RMSprop(lr = 1e-4), metrics = [])
-                                   optimizer = Adam(lr = 5e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
+                                   optimizer = Adam(lr = 1e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
 
     print("Signal/background discriminator:")
@@ -226,7 +226,7 @@ class GAN(object):
         #data   = np.append(signal, bkg, axis = 0)
         #data_t = np.append(np.ones(N), np.zeros(N))
         data, data_t = sklearn.datasets.make_moons(n_samples = 2*N, noise = 0.1 + 0.05*s)
-        data[:,0] += 0.5*s
+        data[:,0] += 0.2*s
         data_w = np.ones(2*N)
         data_s = s*np.ones(2*N)
         add_all_data = np.concatenate( (data_t[:,np.newaxis], data_s[:, np.newaxis], data_w[:,np.newaxis], data), axis=1)
@@ -338,7 +338,7 @@ class GAN(object):
     for x,w,y,s in self.get_batch(origin = 'test', signal = False, syst = True): out_bkg_s.extend(self.disc.predict(x))
     out_bkg_s = np.array(out_bkg_s)
 
-    Nbins = 20
+    Nbins = 5
     bins = np.linspace(0, 1.0, Nbins+1)
     h_signal, be = np.histogram(out_signal, bins = bins)
     e_signal, _ = np.histogram(out_signal**2, bins = bins)
@@ -638,9 +638,9 @@ class GAN(object):
     self.adv_input = K.layers.Input(shape = (1,), name = 'adv_input')
     self.disc_input = K.layers.Input(shape = (self.n_dimensions,), name = 'disc_input')
 
-    self.disc.compile(loss = K.losses.binary_crossentropy, optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
+    self.disc.compile(loss = K.losses.binary_crossentropy, optimizer = K.optimizers.Adam(lr = 1e-5), metrics = [])
     self.adv.compile(loss = K.losses.categorical_crossentropy,
-                        optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
+                        optimizer = K.optimizers.Adam(lr = 1e-4), metrics = [])
     self.create_networks()
 
 def main():
@@ -657,8 +657,8 @@ def main():
                     default='input.h5',
                     help='Name of the file from where to read the input. If the file does not exist, create it. (default: "input.h5")')
   parser.add_argument('--load-trained', dest='trained', action='store',
-                    default='1000',
-                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "1950")')
+                    default='5000',
+                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "5000")')
   parser.add_argument('--prefix', dest='prefix', action='store',
                     default='gan',
                     help='Prefix to be added to filenames when producing plots. (default: "gan")')
