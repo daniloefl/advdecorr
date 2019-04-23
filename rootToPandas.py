@@ -104,15 +104,17 @@ def transformROOTToPandas(treeNameList = ["Nominal",
     if idx < Nrows:
       df = df[0:idx]
   hdf.put('df', df, format = 'table', data_columns = True)
-  lim = int(Nrows/2)
-  train_bkg = pd.DataFrame( ((df['sample'] == 0) & (df.index < lim)))
-  train_sig = pd.DataFrame( ((df['sample'] == 1) & (df.index < lim)))
-  train_syst = pd.DataFrame( ((df['syst'] == 1) & (df.index < lim)))
-  train_nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index < lim)))
-  test_bkg = pd.DataFrame( ((df['sample'] == 0) & (df.index >= lim)))
-  test_sig = pd.DataFrame( ((df['sample'] == 1) & (df.index >= lim)))
-  test_syst = pd.DataFrame( ((df['syst'] == 1) & (df.index >= lim)))
-  test_nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index >= lim)))
+  p = np.random.permutation(Nrows)
+  ptrain = p[:int(Nrows/2)]
+  ptest = p[int(Nrows/2):]
+  train_bkg = pd.DataFrame( ((df['sample'] == 0) & (df.index in ptrain)))
+  train_sig = pd.DataFrame( ((df['sample'] == 1) & (df.index in ptrain)))
+  train_syst = pd.DataFrame( ((df['syst'] == 1) & (df.index in ptrain)))
+  train_nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index in ptrain)))
+  test_bkg = pd.DataFrame( ((df['sample'] == 0) & (df.index in ptest)))
+  test_sig = pd.DataFrame( ((df['sample'] == 1) & (df.index in ptest)))
+  test_syst = pd.DataFrame( ((df['syst'] == 1) & (df.index in ptest)))
+  test_nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index in ptest)))
   hdf.put('train_bkg', train_bkg, format = 'table')
   hdf.put('train_sig', train_sig, format = 'table')
   hdf.put('train_syst', train_syst, format = 'table')
