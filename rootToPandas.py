@@ -66,7 +66,7 @@ def transformROOTToPandas(treeNameList = ["Nominal",
     # sample specifies if it is signal or background
     Nrows += (t[treeName]["bkg"].GetEntries()+t[treeName]["sig"].GetEntries())
 
-  df = pd.DataFrame(np.zeros((Nrows, len(listBranches)+2), dtype = np.float32), columns = ['sample', 'syst', 'weight']+listBranches)
+  df = pd.DataFrame(np.zeros((Nrows, len(listBranches)+3), dtype = np.float32), columns = ['sample', 'syst', 'weight']+listBranches)
   idx = 0
   for treeName in treeNameList:
     for sample in range(0, 2): # signal and bkg
@@ -95,11 +95,11 @@ def transformROOTToPandas(treeNameList = ["Nominal",
           if r > prob:
             continue
 
-        for br in range(0, len(listBranches)):
-          df.loc[idx, listBranches[br]] = getattr(t[treeName][sampleName], listBranches[br])
         df.loc[idx, 'sample'] = sample # 0 for bkg, 1 for signal
         df.loc[idx, 'syst'] = float(treeName != 'Nominal') # 0 for nominal, 1 for syst
         df.loc[idx, 'weight'] = t[treeName][sampleName].EventWeight
+        for br in range(0, len(listBranches)):
+          df.loc[idx, listBranches[br]] = getattr(t[treeName][sampleName], listBranches[br])
         idx += 1
     if idx < Nrows:
       df = df[0:idx]
