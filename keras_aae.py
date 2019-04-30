@@ -29,6 +29,7 @@ from keras.models import Model
 from keras.optimizers import Adam, SGD, RMSprop
 from keras.losses import binary_crossentropy, mean_squared_error
 
+import tensorflow as tf
 import keras as K
 from utils import LayerNormalization
 
@@ -38,39 +39,31 @@ def smoothen(y):
   box = np.ones(N)/float(N)
   return np.convolve(y, box, mode = 'same')
 
+def rec_loss(y_true, y_pred):
+  return tf.reduce_mean(tf.reduce_sum(tf.square(y_true - y_pred), axis = 1), axis = 0)
+  #return tf.reduce_mean(tf.reduce_sum(y_true*tf.log(y_pred), axis = 1), axis = 0)
+
 class AAE(object):
   '''
   Implementation of an adversarial auto-encoder algorithm to decorrelate a discriminator in a variable S.
   The objective of the discriminator is to separate signal (Y = 1) from backgrond (Y = 0). The adv punishes the discriminator
   if it can guess whether the sample is the nominal (N = 1) or a systematic uncertainty (N = 0).
 
-  The discriminator outputs o = D(x), trying to minimize the cross-entropy for the signal/background classification:
-  L_{disc. only} = E_{signal} [ - log(D(x)) ] + E_{bkg} [ - log(1 - D(x)) ]
+  The auto-encoder reconstructs the input, by mapping the input x to a ladent space o = E(x) and decoding it with D(o). We minimize the reconstruction loss,
+  while training the encoder to generate a latent space o = E(x), which fools the adversary:
+  L_{rec.} = E_{nominal} [ (D(E(x)) - x)^2 ] - \lambda_{decorr} { - E_{nominal} [ log C(E(x)) ] - E_{uncertainty} [ log (1 - C(E(x))) ] }
 
-  The adv. estimates a function C(o), where o = D(x), such that the following discriminates between nominal and variation:
-  L_{adv.} = E_{nominal}[ - log C(D(x))] + E_{uncertainty}[ - log(1 - C(D(x)))]
+  We train the adversary to identify the uncertainty class N, from the latent space:
+  L_{adv.} = \lambda_{decorr} { E_{nominal}[ - log A(E(x))] + E_{uncertainty}[ - log(1 - A(E(x)))] }
 
-  To impose those restrictions and punish the discriminator for leaning about nominal or systematic uncertainties (to decorrelate it),
-  the following procedure is implemented:
-  1) Pre-train the discriminator n_pretrain batches, so that it can separate signal from background using this loss function:
-  L_{disc. only} = E_{signal} [ - log(D(x)) ] + E_{bkg} [ - log(1 - D(x)) ]
-
-  2) Train the adv., fixing the discriminator, in n_adv batches,
-     between nominal and uncertainty in the output of the discriminator.
-     Both signal and background samples are used here.
-     epsilon = batch_size samples of a uniform distribution between 0 and 1
-  L_{adv.} = -\lambda_{decorr} { E_{nominal} [ log C(D(x)) ] + E_{uncertainty} [ log(1 - C(D(x))) ] }
-
-  3) Train the discriminator, fixing the adv., in one batch to minimize simultaneously the discriminator cross-entropy and the adversary's.
-  L_{all} = E_{signal} [ - log(D(x)) ] + E_{bkg} [ - log(1 - D(x)) ] + \lambda_{decorr} { E_{nominal} [ log C(D(x)) ] + E_{uncertainty} [ log (1 - C(D(x))) ] }
-
-  4) Go back to 2 and repeat this n_iteration times.
+  The discriminator minimizes the cross-entropy for the signal/background classification, using the latent space as input:
+  L_{disc.} = E_{signal} [ - log(E(x)) ] + E_{bkg} [ - log(1 - E(x)) ]
   '''
 
   def __init__(self,
                n_latent = 5,
-               n_iteration = 5050,
-               n_pretrain = 200,
+               n_iteration = 30050,
+               n_pretrain = 0,
                n_batch = 32,
                lambda_decorr = 1.0,
                n_eval = 50,
@@ -80,7 +73,6 @@ class AAE(object):
 
     :param n_latent: Number of latent dimensions.
     :param n_iteration: Number of batches to run over in total.
-    :param n_pretrain: Number of batches to run over to pre-train the discriminator.
     :param n_batch: Number of samples in a batch.
     :param lambda_decorr: Lambda parameter used to weigh the decorrelation term of the discriminator loss function.
     :param n_eval: Number of batches to train before evaluating metrics.
@@ -107,14 +99,13 @@ class AAE(object):
     xc = Dense(200, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = Dense(100, activation = None)(xc)
+    xc = K.layers.BatchNormalization()(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = LayerNormalization()(xc)
     xc = Dense(50, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = LayerNormalization()(xc)
     xc = Dense(40, activation = None)(xc)
+    #xc = K.layers.BatchNormalization()(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = LayerNormalization()(xc)
     xc = Dense(10, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = Dense(3, activation = 'softmax')(xc)
@@ -130,17 +121,16 @@ class AAE(object):
     xd = Dense(200, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(100, activation = None)(xd)
+    xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = LayerNormalization()(xd)
     xd = Dense(50, activation = None)(xd)
+    xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = LayerNormalization()(xd)
     xd = Dense(40, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = LayerNormalization()(xd)
     xd = Dense(30, activation = None)(xd)
+    xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = LayerNormalization()(xd)
     xd = Dense(20, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(self.n_latent, activation = None)(xd)
@@ -155,17 +145,16 @@ class AAE(object):
     xd = Dense(200, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(100, activation = None)(xd)
+    xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = LayerNormalization()(xd)
     xd = Dense(50, activation = None)(xd)
+    xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = LayerNormalization()(xd)
     xd = Dense(40, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = LayerNormalization()(xd)
     xd = Dense(30, activation = None)(xd)
+    xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = LayerNormalization()(xd)
     xd = Dense(20, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(self.n_dimensions, activation = None)(xd)
@@ -180,17 +169,16 @@ class AAE(object):
     xd = Dense(200, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(100, activation = None)(xd)
+    xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = LayerNormalization()(xd)
     xd = Dense(50, activation = None)(xd)
+    #xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = LayerNormalization()(xd)
     xd = Dense(40, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = LayerNormalization()(xd)
     xd = Dense(30, activation = None)(xd)
+    #xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = LayerNormalization()(xd)
     xd = Dense(20, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(1, activation = 'sigmoid')(xd)
@@ -225,7 +213,7 @@ class AAE(object):
     self.ae = Model([self.any_input],
                     [self.dec(self.any_latent)],
                      name = 'ae')
-    self.ae.compile(loss = [K.losses.mean_squared_error],
+    self.ae.compile(loss = [rec_loss],
                     loss_weights = [1.0],
                     optimizer = K.optimizers.Adam(lr = 1e-5), metrics = [])
 
@@ -235,7 +223,7 @@ class AAE(object):
     self.aae = Model([self.any_input, self.nom_input, self.sys_input],
                      [self.dec(self.any_latent), self.adv(self.nom_latent), self.adv(self.sys_latent)],
                      name = 'aae')
-    self.aae.compile(loss = [K.losses.mean_squared_error, K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
+    self.aae.compile(loss = [rec_loss, K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
                      loss_weights = [1.0, -self.lambda_decorr, -self.lambda_decorr],
                      optimizer = K.optimizers.Adam(lr = 1e-5), metrics = [])
 
@@ -323,6 +311,8 @@ class AAE(object):
     self.col_signal = self.file['df'].columns.get_loc('sample')
     self.col_syst = self.file['df'].columns.get_loc('syst')
     self.col_weight = self.file['df'].columns.get_loc('weight')
+    self.sigma = self.file['df'].std(axis = 0).drop(['sample', 'syst', 'weight'], axis = 0)
+    self.mean = self.file['df'].mean(axis = 0).drop(['sample', 'syst', 'weight'], axis = 0)
 
   '''
   Generate test sample.
@@ -578,7 +568,7 @@ class AAE(object):
         r = rows[i*self.n_batch : (i+1)*self.n_batch]
         r = sorted(r)
         df = self.file.select('df', where = 'index = r')
-        x_batch = df.drop(['weight', 'sample', 'syst'], axis = 1)
+        x_batch = (df.drop(['weight', 'sample', 'syst'], axis = 1) - self.mean)/self.sigma
         x_batch_w = df.loc[:, 'weight']
         y_batch = df.loc[:, 'sample']
         s_batch = df.loc[:, 'syst']
@@ -592,7 +582,7 @@ class AAE(object):
         r = rows[i*self.n_batch : (i+1)*self.n_batch]
         r = sorted(r)
         df = self.file.select('df', where = 'index = r')
-        x_batch = df.drop(['weight', 'sample', 'syst'], axis = 1)
+        x_batch = (df.drop(['weight', 'sample', 'syst'], axis = 1) - self.mean)/self.sigma
         x_batch_w = df.loc[:, 'weight']
         y_batch = df.loc[:, 'sample']
         s_batch = df.loc[:, 'syst']
@@ -637,12 +627,17 @@ class AAE(object):
         x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(iter_sys)
 
         # step AE
-        self.enc.trainable = True
-        self.dec.trainable = True
-        self.adv.trainable = False
-        self.aae.train_on_batch([x_batch_nom, x_batch_nom, x_batch_syst],
-                                [x_batch_nom, np.eye(3)[s_batch_nom.astype(int), :], np.eye(3)[s_batch_syst.astype(int), :]],
-                                sample_weight = [x_batch_nom_w, x_batch_nom_w, x_batch_syst_w])
+        if epoch < self.n_pretrain:
+          self.enc.trainable = True
+          self.dec.trainable = True
+          self.ae.train_on_batch(x_batch_nom, x_batch_nom, sample_weight = x_batch_nom_w)
+        else:
+          self.enc.trainable = True
+          self.dec.trainable = True
+          self.adv.trainable = False
+          self.aae.train_on_batch([x_batch_nom, x_batch_nom, x_batch_syst],
+                                  [x_batch_nom, np.eye(3)[s_batch_nom.astype(int), :], np.eye(3)[s_batch_syst.astype(int), :]],
+                                  sample_weight = [x_batch_nom_w, x_batch_nom_w, x_batch_syst_w])
         # step adv.
         self.enc.trainable = False
         self.dec.trainable = False
@@ -702,7 +697,8 @@ class AAE(object):
     plt.plot(it, (np.abs(self.rec_loss_train - self.lambda_decorr*(self.adv_loss_nom_train + self.adv_loss_sys_train))), linestyle = '-', color = 'k', label = 'Rec. + adv.')
     plt.plot(it, np.abs(self.disc_loss_train), linestyle = '-', color = 'g', label = 'Discriminator')
 
-    #plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
+    if self.n_pretrain > 0 and not self.no_adv:
+      plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
     #plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of adv bootstrap')
     if nnTaken > 0:
       plt.axvline(x = nnTaken, color = 'r', linestyle = '--', label = 'Configuration taken for further analysis')

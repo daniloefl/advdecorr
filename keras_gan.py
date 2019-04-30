@@ -70,7 +70,7 @@ class GAN(object):
   4) Go back to 2 and repeat this n_iteration times.
   '''
 
-  def __init__(self, n_iteration = 5050, n_pretrain = 0, n_adv = 5,
+  def __init__(self, n_iteration = 30050, n_pretrain = 0, n_adv = 5,
                n_batch = 32,
                lambda_decorr = 1.0,
                n_eval = 50,
@@ -207,6 +207,8 @@ class GAN(object):
     self.col_signal = self.file['df'].columns.get_loc('sample')
     self.col_syst = self.file['df'].columns.get_loc('syst')
     self.col_weight = self.file['df'].columns.get_loc('weight')
+    self.sigma = self.file['df'].std(axis = 0).drop(['sample', 'syst', 'weight'], axis = 0)
+    self.mean = self.file['df'].mean(axis = 0).drop(['sample', 'syst', 'weight'], axis = 0)
 
   '''
   Generate test sample.
@@ -461,7 +463,7 @@ class GAN(object):
         r = rows[i*self.n_batch : (i+1)*self.n_batch]
         r = sorted(r)
         df = self.file.select('df', where = 'index = r')
-        x_batch = df.drop(['weight', 'sample', 'syst'], axis = 1)
+        x_batch = (df.drop(['weight', 'sample', 'syst'], axis = 1) - self.mean)/self.sigma
         x_batch_w = df.loc[:, 'weight']
         y_batch = df.loc[:, 'sample']
         s_batch = df.loc[:, 'syst']
@@ -475,7 +477,7 @@ class GAN(object):
         r = rows[i*self.n_batch : (i+1)*self.n_batch]
         r = sorted(r)
         df = self.file.select('df', where = 'index = r')
-        x_batch = df.drop(['weight', 'sample', 'syst'], axis = 1)
+        x_batch = (df.drop(['weight', 'sample', 'syst'], axis = 1) - self.mean)/self.sigma
         x_batch_w = df.loc[:, 'weight']
         y_batch = df.loc[:, 'sample']
         s_batch = df.loc[:, 'syst']
@@ -657,8 +659,8 @@ def main():
                     default='input.h5',
                     help='Name of the file from where to read the input. If the file does not exist, create it. (default: "input.h5")')
   parser.add_argument('--load-trained', dest='trained', action='store',
-                    default='5000',
-                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "5000")')
+                    default='30000',
+                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "30000")')
   parser.add_argument('--prefix', dest='prefix', action='store',
                     default='gan',
                     help='Prefix to be added to filenames when producing plots. (default: "gan")')
