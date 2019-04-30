@@ -62,10 +62,10 @@ class AAE(object):
 
   def __init__(self,
                n_latent = 5,
-               n_iteration = 30050,
+               n_iteration = 5050,
                n_pretrain = 0,
-               n_batch = 32,
-               lambda_decorr = 1.0,
+               n_batch = 128,
+               lambda_decorr = 10.0,
                n_eval = 50,
                no_adv = False):
     '''
