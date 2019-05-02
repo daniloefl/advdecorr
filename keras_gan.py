@@ -72,7 +72,7 @@ class GAN(object):
 
   def __init__(self, n_iteration = 30050, n_pretrain = 0, n_adv = 5,
                n_batch = 128,
-               lambda_decorr = 0.1,
+               lambda_decorr = 1.0,
                n_eval = 50,
                no_adv = False):
     '''
@@ -172,7 +172,7 @@ class GAN(object):
                                 name = "disc_split")
     self.disc_split.compile(loss = [K.losses.binary_crossentropy, K.losses.binary_crossentropy],
                                 loss_weights = [1.0, 1.0],
-                                optimizer = Adam(lr = 1e-4), metrics = [])
+                                optimizer = Adam(lr = 1e-5), metrics = [])
 
     self.disc_fixed_adv = Model([self.nominal_input_s, self.nominal_input_b, self.syst_input_s, self.syst_input_b],
                                 [self.adv(self.disc(self.nominal_input_s)), self.adv(self.disc(self.nominal_input_b)),
@@ -183,7 +183,7 @@ class GAN(object):
                                 loss_weights = [self.lambda_decorr, self.lambda_decorr,
                                                 self.lambda_decorr, self.lambda_decorr],
                                 #optimizer = RMSprop(lr = 1e-4), metrics = [])
-                                optimizer = Adam(lr = 1e-4, beta_1 = 0, beta_2 = 0.9), metrics = [])
+                                optimizer = Adam(lr = 1e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
     self.disc.trainable = True
     self.adv.trainable = False
@@ -197,7 +197,7 @@ class GAN(object):
                                         K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
                                    loss_weights = [1.0, 1.0, -self.lambda_decorr, -self.lambda_decorr, -self.lambda_decorr, -self.lambda_decorr],
                                    #optimizer = RMSprop(lr = 1e-4), metrics = [])
-                                   optimizer = Adam(lr = 1e-4, beta_1 = 0, beta_2 = 0.9), metrics = [])
+                                   optimizer = Adam(lr = 1e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
 
     print("Signal/background discriminator:")
