@@ -167,6 +167,7 @@ class GAN(object):
     self.syst_input_s = Input(shape = (self.n_dimensions,), name = 'syst_input_s')
     self.syst_input_b = Input(shape = (self.n_dimensions,), name = 'syst_input_b')
 
+    self.disc.trainable = True
     self.disc_split = Model([self.nominal_input_s, self.nominal_input_b],
                                 [self.disc(self.nominal_input_s), self.disc(self.nominal_input_b)],
                                 name = "disc_split")
