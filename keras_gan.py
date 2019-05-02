@@ -72,7 +72,7 @@ class GAN(object):
 
   def __init__(self, n_iteration = 30050, n_pretrain = 0, n_adv = 5,
                n_batch = 128,
-               lambda_decorr = 1.0,
+               lambda_decorr = 10.0,
                n_eval = 50,
                no_adv = False):
     '''
@@ -175,6 +175,7 @@ class GAN(object):
                                 loss_weights = [1.0, 1.0],
                                 optimizer = Adam(lr = 1e-5), metrics = [])
 
+    self.disc.trainable = False
     self.disc_fixed_adv = Model([self.nominal_input_s, self.nominal_input_b, self.syst_input_s, self.syst_input_b],
                                 [self.adv(self.disc(self.nominal_input_s)), self.adv(self.disc(self.nominal_input_b)),
                                  self.adv(self.disc(self.syst_input_s)), self.adv(self.disc(self.syst_input_b))],
