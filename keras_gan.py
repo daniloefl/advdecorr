@@ -72,7 +72,7 @@ class GAN(object):
 
   def __init__(self, n_iteration = 30050, n_pretrain = 0, n_adv = 5,
                n_batch = 128,
-               lambda_decorr = 10.0,
+               lambda_decorr = 0.1,
                n_eval = 50,
                no_adv = False):
     '''
@@ -105,12 +105,12 @@ class GAN(object):
     xc = Dense(200, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = Dense(100, activation = None)(xc)
-    xc = K.layers.BatchNormalization()(xc)
+    #xc = K.layers.BatchNormalization()(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = Dense(50, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = Dense(40, activation = None)(xc)
-    xc = K.layers.BatchNormalization()(xc)
+    #xc = K.layers.BatchNormalization()(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = Dense(10, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
@@ -130,12 +130,12 @@ class GAN(object):
     xd = Dense(200, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(100, activation = None)(xd)
-    xd = K.layers.BatchNormalization()(xd)
+    #xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(50, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(40, activation = None)(xd)
-    xd = K.layers.BatchNormalization()(xd)
+    #xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(30, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
@@ -161,23 +161,43 @@ class GAN(object):
     self.nominal_input = Input(shape = (self.n_dimensions,), name = 'nominal_input')
     self.syst_input = Input(shape = (self.n_dimensions,), name = 'syst_input')
 
-    self.disc_fixed_adv = Model([self.nominal_input, self.syst_input],
-                                [self.adv(self.disc(self.nominal_input)), self.adv(self.disc(self.syst_input))],
+    self.nominal_input_s = Input(shape = (self.n_dimensions,), name = 'nominal_input_s')
+    self.nominal_input_b = Input(shape = (self.n_dimensions,), name = 'nominal_input_b')
+
+    self.syst_input_s = Input(shape = (self.n_dimensions,), name = 'syst_input_s')
+    self.syst_input_b = Input(shape = (self.n_dimensions,), name = 'syst_input_b')
+
+    self.disc_split = Model([self.nominal_input_s, self.nominal_input_b],
+                                [self.disc(self.nominal_input_s), self.disc(self.nominal_input_b)],
+                                name = "disc_split")
+    self.disc_split.compile(loss = [K.losses.binary_crossentropy, K.losses.binary_crossentropy],
+                                loss_weights = [1.0, 1.0],
+                                optimizer = Adam(lr = 1e-4), metrics = [])
+
+    self.disc_fixed_adv = Model([self.nominal_input_s, self.nominal_input_b, self.syst_input_s, self.syst_input_b],
+                                [self.adv(self.disc(self.nominal_input_s)), self.adv(self.disc(self.nominal_input_b)),
+                                 self.adv(self.disc(self.syst_input_s)), self.adv(self.disc(self.syst_input_b))],
                                 name = "disc_fixed_adv")
-    self.disc_fixed_adv.compile(loss = [K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
-                                loss_weights = [self.lambda_decorr, self.lambda_decorr],
+    self.disc_fixed_adv.compile(loss = [K.losses.categorical_crossentropy, K.losses.categorical_crossentropy,
+                                        K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
+                                loss_weights = [self.lambda_decorr, self.lambda_decorr,
+                                                self.lambda_decorr, self.lambda_decorr],
                                 #optimizer = RMSprop(lr = 1e-4), metrics = [])
-                                optimizer = Adam(lr = 1e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
+                                optimizer = Adam(lr = 1e-4, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
     self.disc.trainable = True
     self.adv.trainable = False
-    self.disc_adv_fixed = Model([self.disc_input, self.nominal_input, self.syst_input],
-                                [self.disc(self.disc_input), self.adv(self.disc(self.nominal_input)), self.adv(self.disc(self.syst_input))],
+    self.disc_adv_fixed = Model([self.nominal_input_s, self.nominal_input_b, self.syst_input_s, self.syst_input_b],
+                                [self.disc(self.nominal_input_s), self.disc(self.nominal_input_b),
+                                 self.adv(self.disc(self.nominal_input_s)), self.adv(self.disc(self.nominal_input_b)),
+                                 self.adv(self.disc(self.syst_input_s)), self.adv(self.disc(self.syst_input_b))],
                                 name = "disc_adv_fixed")
-    self.disc_adv_fixed.compile(loss = [K.losses.binary_crossentropy, K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
-                                   loss_weights = [1.0, -self.lambda_decorr, -self.lambda_decorr],
+    self.disc_adv_fixed.compile(loss = [K.losses.binary_crossentropy, K.losses.binary_crossentropy,
+                                        K.losses.categorical_crossentropy, K.losses.categorical_crossentropy,
+                                        K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
+                                   loss_weights = [1.0, 1.0, -self.lambda_decorr, -self.lambda_decorr, -self.lambda_decorr, -self.lambda_decorr],
                                    #optimizer = RMSprop(lr = 1e-4), metrics = [])
-                                   optimizer = Adam(lr = 1e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
+                                   optimizer = Adam(lr = 1e-4, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
 
     print("Signal/background discriminator:")
@@ -206,6 +226,11 @@ class GAN(object):
     self.col_weight = self.file['df'].columns.get_loc('weight')
     self.sigma = self.file['df'].std(axis = 0).drop(['sample', 'syst', 'weight'], axis = 0)
     self.mean = self.file['df'].mean(axis = 0).drop(['sample', 'syst', 'weight'], axis = 0)
+    #sumWSignal = self.file['df'].loc[self.file['df']['sample'] == 1, 'weight'].sum()
+    #sumWBkg = self.file['df'].loc[self.file['df']['sample'] == 0, 'weight'].sum()
+    #sumW = sumWSignal + sumWBkg
+    #self.file['df'].loc[self.file['df']['sample'] == 0, 'weight'] *= sumWSignal/sumW
+    #self.file['df'].loc[self.file['df']['sample'] == 1, 'weight'] *= sumWBkg/sumW
 
   '''
   Generate test sample.
@@ -491,55 +516,85 @@ class GAN(object):
     self.adv_loss_nom_train = np.array([])
     self.adv_loss_sys_train = np.array([])
     self.disc_loss_train = np.array([])
-    iter_nom = self.get_batch(origin = 'train', syst = False, noStop = True)
-    iter_sys = self.get_batch(origin = 'train', syst = True, noStop = True)
-    iter_test_nom = self.get_batch(origin = 'test', syst = False, noStop = True)
-    iter_test_sys = self.get_batch(origin = 'test', syst = True, noStop = True)
+
+    iter_nom_s = self.get_batch(origin = 'train', syst = False, signal = True, noStop = True)
+    iter_nom_b = self.get_batch(origin = 'train', syst = False, signal = False, noStop = True)
+    iter_sys_s = self.get_batch(origin = 'train', syst = True, signal = True, noStop = True)
+    iter_sys_b = self.get_batch(origin = 'train', syst = True, signal = False, noStop = True)
+
+    iter_test_nom_s = self.get_batch(origin = 'test', syst = False, signal = True, noStop = True)
+    iter_test_nom_b = self.get_batch(origin = 'test', syst = False, signal = False, noStop = True)
+    iter_test_sys_s = self.get_batch(origin = 'test', syst = True, signal = True, noStop = True)
+    iter_test_sys_b = self.get_batch(origin = 'test', syst = True, signal = False, noStop = True)
+
     for epoch in range(self.n_iteration):
       if self.no_adv:
-        x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
+        x_batch_nom_s, x_batch_nom_w_s, y_batch_nom_s, s_batch_nom_s = next(iter_nom_s)
+        x_batch_nom_b, x_batch_nom_w_b, y_batch_nom_b, s_batch_nom_b = next(iter_nom_b)
         self.disc.trainable = True
-        self.disc.train_on_batch(x_batch_nom, y_batch_nom, sample_weight = x_batch_nom_w)
+        self.disc_split.train_on_batch([x_batch_nom_s, x_batch_nom_b],
+                                       [y_batch_nom_s, y_batch_nom_b],
+                                       sample_weight = [x_batch_nom_w_s, x_batch_nom_w_b])
 
       if not self.no_adv:
         # step 0 - pretraining
         if epoch < self.n_pretrain:
-          x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
+          x_batch_nom_s, x_batch_nom_w_s, y_batch_nom_s, s_batch_nom_s = next(iter_nom_s)
+          x_batch_nom_b, x_batch_nom_w_b, y_batch_nom_b, s_batch_nom_b = next(iter_nom_b)
           self.disc.trainable = True
-          self.disc.train_on_batch(x_batch_nom, y_batch_nom, sample_weight = x_batch_nom_w)
+          self.disc_split.train_on_batch([x_batch_nom_s, x_batch_nom_b],
+                                         [y_batch_nom_s, y_batch_nom_b],
+                                         sample_weight = [x_batch_nom_w_s, x_batch_nom_w_b])
 
         if epoch >= self.n_pretrain:
           # step adv.
           n_adv = self.n_adv
           for k in range(0, n_adv):
-            x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
-            x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(iter_sys)
+            x_batch_nom_s, x_batch_nom_w_s, y_batch_nom_s, s_batch_nom_s = next(iter_nom_s)
+            x_batch_nom_b, x_batch_nom_w_b, y_batch_nom_b, s_batch_nom_b = next(iter_nom_b)
+            x_batch_syst_s, x_batch_syst_w_s, y_batch_syst_s, s_batch_syst_s = next(iter_sys_s)
+            x_batch_syst_b, x_batch_syst_w_b, y_batch_syst_b, s_batch_syst_b = next(iter_sys_b)
 
             self.disc.trainable = False
             self.adv.trainable = True
-            self.disc_fixed_adv.train_on_batch([x_batch_nom, x_batch_syst],
-                                               [np.eye(3)[s_batch_nom.astype(int),:], np.eye(3)[s_batch_syst.astype(int),:]],
-                                               sample_weight = [x_batch_nom_w, x_batch_syst_w])
+            self.disc_fixed_adv.train_on_batch([x_batch_nom_s, x_batch_nom_b, x_batch_syst_s, x_batch_syst_b],
+                                               [np.eye(3)[s_batch_nom_s.astype(int),:], np.eye(3)[s_batch_nom_b.astype(int),:],
+                                                np.eye(3)[s_batch_syst_s.astype(int),:], np.eye(3)[s_batch_syst_b.astype(int),:]],
+                                               sample_weight = [x_batch_nom_w_s, x_batch_nom_w_b,
+                                                                x_batch_syst_w_s, x_batch_syst_w_b])
 
           # step generator
-          x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
-          x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(iter_sys)
+          x_batch_nom_s, x_batch_nom_w_s, y_batch_nom_s, s_batch_nom_s = next(iter_nom_s)
+          x_batch_nom_b, x_batch_nom_w_b, y_batch_nom_b, s_batch_nom_b = next(iter_nom_b)
+          x_batch_syst_s, x_batch_syst_w_s, y_batch_syst_s, s_batch_syst_s = next(iter_sys_s)
+          x_batch_syst_b, x_batch_syst_w_b, y_batch_syst_b, s_batch_syst_b = next(iter_sys_b)
 
           self.disc.trainable = True
           self.adv.trainable = False
-          self.disc_adv_fixed.train_on_batch([x_batch_nom, x_batch_nom, x_batch_syst],
-                                             [y_batch_nom, np.eye(3)[s_batch_nom.astype(int),:], np.eye(3)[s_batch_syst.astype(int),:]],
-                                             sample_weight = [x_batch_nom_w, x_batch_nom_w, x_batch_syst_w])
+          self.disc_adv_fixed.train_on_batch([x_batch_nom_s, x_batch_nom_b, x_batch_syst_s, x_batch_syst_b],
+                                             [y_batch_nom_s, y_batch_nom_b,
+                                              np.eye(3)[s_batch_nom_s.astype(int),:], np.eye(3)[s_batch_nom_b.astype(int),:],
+                                              np.eye(3)[s_batch_syst_s.astype(int),:], np.eye(3)[s_batch_syst_b.astype(int),:]],
+                                             sample_weight = [x_batch_nom_w_s, x_batch_nom_w_b,
+                                                              x_batch_nom_w_s, x_batch_nom_w_b,
+                                                              x_batch_syst_w_s, x_batch_syst_w_b])
   
       if epoch % self.n_eval == 0:
         disc_metric = 0
         adv_metric_nom = 0
         adv_metric_syst = 0
-        x,w,y,s = next(iter_test_nom)
+        x,w,y,s = next(iter_test_nom_s)
+        disc_metric += self.disc.evaluate(x.values, y.values, sample_weight = w.values, verbose = 0)
+        x,w,y,s = next(iter_test_nom_b)
         disc_metric += self.disc.evaluate(x.values, y.values, sample_weight = w.values, verbose = 0)
         if epoch >= self.n_pretrain and not self.no_adv:
+          x,w,y,s = next(iter_test_nom_s)
           adv_metric_nom += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), np.eye(3)[s.astype(int),:], sample_weight = w.values, verbose = 0)
-          x,w,y,s = next(iter_test_sys)
+          x,w,y,s = next(iter_test_nom_b)
+          adv_metric_nom += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), np.eye(3)[s.astype(int),:], sample_weight = w.values, verbose = 0)
+          x,w,y,s = next(iter_test_sys_s)
+          adv_metric_syst += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), np.eye(3)[s.astype(int),:], sample_weight = w.values, verbose = 0)
+          x,w,y,s = next(iter_test_sys_b)
           adv_metric_syst += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), np.eye(3)[s.astype(int),:], sample_weight = w.values, verbose = 0)
         adv_metric = adv_metric_nom + adv_metric_syst
         if adv_metric == 0: adv_metric = 1e-20
@@ -583,7 +638,7 @@ class GAN(object):
     if nnTaken > 0:
       plt.axvline(x = nnTaken, color = 'r', linestyle = '--', label = 'Configuration taken for further analysis')
     ax.set(xlabel='Batches', ylabel='Loss', title='Training evolution');
-    ax.set_ylim([1e-3, 10])
+    ax.set_ylim([1e-1, 100])
     ax.set_yscale('log')
     plt.legend(frameon = False)
     plt.savefig(filename)

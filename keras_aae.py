@@ -62,7 +62,7 @@ class AAE(object):
 
   def __init__(self,
                n_latent = 5,
-               n_iteration = 5050,
+               n_iteration = 30050,
                n_pretrain = 0,
                n_batch = 128,
                lambda_decorr = 10.0,
@@ -99,7 +99,7 @@ class AAE(object):
     xc = Dense(200, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = Dense(100, activation = None)(xc)
-    xc = K.layers.BatchNormalization()(xc)
+    #xc = K.layers.BatchNormalization()(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = Dense(50, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
@@ -121,15 +121,15 @@ class AAE(object):
     xd = Dense(200, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(100, activation = None)(xd)
-    xd = K.layers.BatchNormalization()(xd)
+    #xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(50, activation = None)(xd)
-    xd = K.layers.BatchNormalization()(xd)
+    #xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(40, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(30, activation = None)(xd)
-    xd = K.layers.BatchNormalization()(xd)
+    #xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(20, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
@@ -145,15 +145,15 @@ class AAE(object):
     xd = Dense(200, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(100, activation = None)(xd)
-    xd = K.layers.BatchNormalization()(xd)
+    #xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(50, activation = None)(xd)
-    xd = K.layers.BatchNormalization()(xd)
+    #xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(40, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(30, activation = None)(xd)
-    xd = K.layers.BatchNormalization()(xd)
+    #xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(20, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
@@ -169,7 +169,7 @@ class AAE(object):
     xd = Dense(200, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(100, activation = None)(xd)
-    xd = K.layers.BatchNormalization()(xd)
+    #xd = K.layers.BatchNormalization()(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(50, activation = None)(xd)
     #xd = K.layers.BatchNormalization()(xd)
@@ -183,6 +183,8 @@ class AAE(object):
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(1, activation = 'sigmoid')(xd)
     self.disc = Model(self.disc_input, xd, name = "disc")
+    self.disc.compile(loss = K.losses.binary_crossentropy,
+                      optimizer = K.optimizers.Adam(lr = 1e-4), metrics = [])
     self.disc.trainable = True
 
   '''
@@ -205,51 +207,69 @@ class AAE(object):
 
     self.nom_input = Input(shape = (self.n_dimensions,), name = 'nom_input')
     self.sys_input = Input(shape = (self.n_dimensions,), name = 'sys_input')
-    self.any_input = Input(shape = (self.n_dimensions,), name = 'any_input')
 
-    self.any_latent = self.enc(self.any_input)
+    self.nom_input_s = Input(shape = (self.n_dimensions,), name = 'nom_input_s')
+    self.nom_input_b = Input(shape = (self.n_dimensions,), name = 'nom_input_b')
+
+    self.sys_input_s = Input(shape = (self.n_dimensions,), name = 'sys_input_s')
+    self.sys_input_b = Input(shape = (self.n_dimensions,), name = 'sys_input_b')
+
+    self.nom_latent_s = self.enc(self.nom_input_s)
+    self.nom_latent_b = self.enc(self.nom_input_b)
+
+    self.sys_latent_s = self.enc(self.sys_input_s)
+    self.sys_latent_b = self.enc(self.sys_input_b)
+
     self.nom_latent = self.enc(self.nom_input)
     self.sys_latent = self.enc(self.sys_input)
-    self.ae = Model([self.any_input],
-                    [self.dec(self.any_latent)],
+    self.ae = Model([self.nom_input_s, self.nom_input_b],
+                    [self.dec(self.nom_latent_s), self.dec(self.nom_latent_b)],
                      name = 'ae')
-    self.ae.compile(loss = [rec_loss],
-                    loss_weights = [1.0],
-                    optimizer = K.optimizers.Adam(lr = 1e-5), metrics = [])
+    self.ae.compile(loss = [rec_loss, rec_loss],
+                    loss_weights = [1.0, 1.0],
+                    optimizer = K.optimizers.Adam(lr = 1e-4), metrics = [])
 
     self.enc.trainable = True
     self.dec.trainable = True
     self.adv.trainable = False
-    self.aae = Model([self.any_input, self.nom_input, self.sys_input],
-                     [self.dec(self.any_latent), self.adv(self.nom_latent), self.adv(self.sys_latent)],
+    self.aae = Model([self.nom_input_s, self.nom_input_b, self.sys_input_s, self.sys_input_b],
+                     [self.dec(self.nom_latent_s), self.dec(self.nom_latent_b),
+                      self.adv(self.nom_latent_s), self.adv(self.nom_latent_b),
+                      self.adv(self.sys_latent_s), self.adv(self.sys_latent_b)],
                      name = 'aae')
-    self.aae.compile(loss = [rec_loss, K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
-                     loss_weights = [1.0, -self.lambda_decorr, -self.lambda_decorr],
-                     optimizer = K.optimizers.Adam(lr = 1e-5), metrics = [])
+    self.aae.compile(loss = [rec_loss, rec_loss,
+                             K.losses.categorical_crossentropy, K.losses.categorical_crossentropy,
+                             K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
+                     loss_weights = [1.0, 1.0,
+                                     -self.lambda_decorr, -self.lambda_decorr,
+                                     -self.lambda_decorr, -self.lambda_decorr],
+                     optimizer = K.optimizers.Adam(lr = 1e-4), metrics = [])
 
     self.enc.trainable = False
     self.dec.trainable = False
     self.adv.trainable = True
-    self.ae_fixed_adv = Model([self.nom_input, self.sys_input],
-                              [self.adv(self.nom_latent), self.adv(self.sys_latent)],
+    self.ae_fixed_adv = Model([self.nom_input_s, self.nom_input_b, self.sys_input_s, self.sys_input_b],
+                              [self.adv(self.nom_latent_s), self.adv(self.nom_latent_b),
+                               self.adv(self.sys_latent_s), self.adv(self.sys_latent_b)],
                               name = 'ae_fixed_adv')
-    self.ae_fixed_adv.compile(loss = [K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
-                              loss_weights = [self.lambda_decorr, self.lambda_decorr],
-                              optimizer = K.optimizers.Adam(lr = 1e-5), metrics = [])
+    self.ae_fixed_adv.compile(loss = [K.losses.categorical_crossentropy, K.losses.categorical_crossentropy,
+                                      K.losses.categorical_crossentropy, K.losses.categorical_crossentropy],
+                              loss_weights = [self.lambda_decorr, self.lambda_decorr, self.lambda_decorr, self.lambda_decorr],
+                              optimizer = K.optimizers.Adam(lr = 1e-4), metrics = [])
 
     self.enc.trainable = False
     self.disc.trainable = True
-    self.enc_disc = Model([self.any_input],
-                          [self.disc(self.any_latent)],
+    self.enc_disc = Model([self.nom_input_s, self.nom_input_b],
+                          [self.disc(self.nom_latent_s), self.disc(self.nom_latent_b)],
                           name = 'enc_disc')
-    self.enc_disc.compile(loss = [K.losses.binary_crossentropy],
-                          loss_weights = [1.0],
-                          optimizer = K.optimizers.Adam(lr = 1e-5), metrics = [])
+    self.enc_disc.compile(loss = [K.losses.binary_crossentropy, K.losses.binary_crossentropy],
+                          loss_weights = [1.0, 1.0],
+                          optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
 
     self.enc.trainable = False
     self.adv.trainable = True
-    self.enc_adv = Model([self.any_input],
-                          [self.adv(self.any_latent)],
+    self.enc_adv = Model([self.nom_input],
+                          [self.adv(self.nom_latent)],
                           name = 'enc_adv')
 
     self.enc.trainable = True
@@ -313,6 +333,11 @@ class AAE(object):
     self.col_weight = self.file['df'].columns.get_loc('weight')
     self.sigma = self.file['df'].std(axis = 0).drop(['sample', 'syst', 'weight'], axis = 0)
     self.mean = self.file['df'].mean(axis = 0).drop(['sample', 'syst', 'weight'], axis = 0)
+    #sumWSignal = self.file['df'].loc[self.file['df']['sample'] == 1, 'weight'].sum()
+    #sumWBkg = self.file['df'].loc[self.file['df']['sample'] == 0, 'weight'].sum()
+    #sumW = sumWSignal + sumWBkg
+    #self.file['df'].loc[self.file['df']['sample'] == 0, 'weight'] *= sumWSignal/sumW
+    #self.file['df'].loc[self.file['df']['sample'] == 1, 'weight'] *= sumWBkg/sumW
 
   '''
   Generate test sample.
@@ -408,10 +433,10 @@ class AAE(object):
     import matplotlib.pyplot as plt
     import seaborn as sns
     out_signal = []
-    for x,w,y,s in self.get_batch(origin = 'test', signal = True): out_signal.extend(self.enc_disc.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = True): out_signal.extend(self.disc.predict(self.enc.predict(x)))
     out_signal = np.array(out_signal)
     out_bkg = []
-    for x,w,y,s in self.get_batch(origin = 'test', signal = False): out_bkg.extend(self.enc_disc.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = False): out_bkg.extend(self.disc.predict(self.enc.predict(x)))
     out_bkg = np.array(out_bkg)
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111)
@@ -432,17 +457,17 @@ class AAE(object):
     import seaborn as sns
 
     out_signal = []
-    for x,w,y,s in self.get_batch(origin = 'test', signal = True, syst = False): out_signal.extend(self.enc_disc.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = True, syst = False): out_signal.extend(self.disc.predict(self.enc.predict(x)))
     out_signal = np.array(out_signal)
     out_bkg = []
-    for x,w,y,s in self.get_batch(origin = 'test', signal = False, syst = False): out_bkg.extend(self.enc_disc.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = False, syst = False): out_bkg.extend(self.disc.predict(self.enc.predict(x)))
     out_bkg = np.array(out_bkg)
 
     out_signal_s = []
-    for x,w,y,s in self.get_batch(origin = 'test', signal = True, syst = True): out_signal_s.extend(self.enc_disc.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = True, syst = True): out_signal_s.extend(self.disc.predict(self.enc.predict(x)))
     out_signal_s = np.array(out_signal_s)
     out_bkg_s = []
-    for x,w,y,s in self.get_batch(origin = 'test', signal = False, syst = True): out_bkg_s.extend(self.enc_disc.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', signal = False, syst = True): out_bkg_s.extend(self.disc.predict(self.enc.predict(x)))
     out_bkg_s = np.array(out_bkg_s)
 
     Nbins = 5
@@ -593,74 +618,119 @@ class AAE(object):
     self.adv_loss_nom_train = np.array([])
     self.adv_loss_sys_train = np.array([])
     self.disc_loss_train = np.array([])
-    iter_nom = self.get_batch(origin = 'train', syst = False, noStop = True)
-    iter_sys = self.get_batch(origin = 'train', syst = True, noStop = True)
-    iter_test_nom = self.get_batch(origin = 'test', syst = False, noStop = True)
-    iter_test_sys = self.get_batch(origin = 'test', syst = True, noStop = True)
+    iter_nom_s = self.get_batch(origin = 'train', syst = False, signal = True, noStop = True)
+    iter_nom_b = self.get_batch(origin = 'train', syst = False, signal = False, noStop = True)
+    iter_sys_s = self.get_batch(origin = 'train', syst = True, signal = True, noStop = True)
+    iter_sys_b = self.get_batch(origin = 'train', syst = True, signal = False, noStop = True)
+    iter_test_nom_s = self.get_batch(origin = 'test', syst = False, signal = True, noStop = True)
+    iter_test_nom_b = self.get_batch(origin = 'test', syst = False, signal = False, noStop = True)
+    iter_test_sys_s = self.get_batch(origin = 'test', syst = True, signal = True, noStop = True)
+    iter_test_sys_b = self.get_batch(origin = 'test', syst = True, signal = False, noStop = True)
     for epoch in range(self.n_iteration):
       if self.no_adv:
-        x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
-        x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(iter_sys)
+        x_batch_nom_s, x_batch_nom_w_s, y_batch_nom_s, s_batch_nom_s = next(iter_nom_s)
+        x_batch_nom_b, x_batch_nom_w_b, y_batch_nom_b, s_batch_nom_b = next(iter_nom_b)
+        x_batch_syst_s, x_batch_syst_w_s, y_batch_syst_s, s_batch_syst_s = next(iter_sys_s)
+        x_batch_syst_b, x_batch_syst_w_b, y_batch_syst_b, s_batch_syst_b = next(iter_sys_b)
 
         # step AE
         self.enc.trainable = True
         self.dec.trainable = True
-        self.ae.train_on_batch(x_batch_nom, x_batch_nom, sample_weight = x_batch_nom_w)
+        self.ae.train_on_batch([x_batch_nom_s, x_batch_nom_b],
+                               [x_batch_nom_s, x_batch_nom_b],
+                               sample_weight = [x_batch_nom_w_s, x_batch_nom_w_b]
+                              )
 
         # step adv.
         self.enc.trainable = False
         self.dec.trainable = False
         self.adv.trainable = True
-        self.ae_fixed_adv.train_on_batch([x_batch_nom, x_batch_syst],
-                                         [np.eye(3)[s_batch_nom.astype(int), :], np.eye(3)[s_batch_syst.astype(int), :]],
-                                         sample_weight = [x_batch_nom_w, x_batch_syst_w])
+        self.ae_fixed_adv.train_on_batch([x_batch_nom_s, x_batch_nom_b, x_batch_syst_s, x_batch_syst_b],
+                                         [np.eye(3)[s_batch_nom_s.astype(int), :], np.eye(3)[s_batch_nom_b.astype(int), :],
+                                          np.eye(3)[s_batch_syst_s.astype(int), :], np.eye(3)[s_batch_syst_b.astype(int), :]],
+                                         sample_weight = [x_batch_nom_w_s, x_batch_nom_w_b, x_batch_syst_w_s, x_batch_syst_w_b]
+                                        )
 
         # step discriminator
         self.enc.trainable = False
         self.disc.trainable = True
-        self.enc_disc.train_on_batch([x_batch_nom],
-                                     [y_batch_nom],
-                                     sample_weight = [x_batch_nom_w])
+        self.enc_disc.train_on_batch([x_batch_nom_s, x_batch_nom_b],
+                                     [y_batch_nom_s, y_batch_nom_b],
+                                     sample_weight = [x_batch_nom_w_s, x_batch_nom_w_b]
+                                    )
 
       if not self.no_adv:
-        x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
-        x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(iter_sys)
+        x_batch_nom_s, x_batch_nom_w_s, y_batch_nom_s, s_batch_nom_s = next(iter_nom_s)
+        x_batch_nom_b, x_batch_nom_w_b, y_batch_nom_b, s_batch_nom_b = next(iter_nom_b)
+        x_batch_syst_s, x_batch_syst_w_s, y_batch_syst_s, s_batch_syst_s = next(iter_sys_s)
+        x_batch_syst_b, x_batch_syst_w_b, y_batch_syst_b, s_batch_syst_b = next(iter_sys_b)
 
         # step AE
         if epoch < self.n_pretrain:
           self.enc.trainable = True
           self.dec.trainable = True
-          self.ae.train_on_batch(x_batch_nom, x_batch_nom, sample_weight = x_batch_nom_w)
+          self.ae.train_on_batch([x_batch_nom_s, x_batch_nom_b],
+                                 [x_batch_nom_s, x_batch_nom_b],
+                                 sample_weight = [x_batch_nom_w_s, x_batch_nom_w_b]
+                                )
         else:
           self.enc.trainable = True
           self.dec.trainable = True
           self.adv.trainable = False
-          self.aae.train_on_batch([x_batch_nom, x_batch_nom, x_batch_syst],
-                                  [x_batch_nom, np.eye(3)[s_batch_nom.astype(int), :], np.eye(3)[s_batch_syst.astype(int), :]],
-                                  sample_weight = [x_batch_nom_w, x_batch_nom_w, x_batch_syst_w])
+          self.aae.train_on_batch([x_batch_nom_s, x_batch_nom_b, x_batch_syst_s, x_batch_syst_b],
+                                  [x_batch_nom_s, x_batch_nom_b,
+                                   np.eye(3)[s_batch_nom_s.astype(int), :], np.eye(3)[s_batch_nom_s.astype(int), :],
+                                   np.eye(3)[s_batch_syst_s.astype(int), :], np.eye(3)[s_batch_syst_s.astype(int), :]],
+                                  sample_weight = [x_batch_nom_w_s, x_batch_nom_w_b, x_batch_nom_w_s, x_batch_nom_w_b, x_batch_syst_w_s, x_batch_syst_w_b]
+                                 )
         # step adv.
+        x_batch_nom_s, x_batch_nom_w_s, y_batch_nom_s, s_batch_nom_s = next(iter_nom_s)
+        x_batch_nom_b, x_batch_nom_w_b, y_batch_nom_b, s_batch_nom_b = next(iter_nom_b)
+        x_batch_syst_s, x_batch_syst_w_s, y_batch_syst_s, s_batch_syst_s = next(iter_sys_s)
+        x_batch_syst_b, x_batch_syst_w_b, y_batch_syst_b, s_batch_syst_b = next(iter_sys_b)
         self.enc.trainable = False
         self.dec.trainable = False
         self.adv.trainable = True
-        self.ae_fixed_adv.train_on_batch([x_batch_nom, x_batch_syst],
-                                         [np.eye(3)[s_batch_nom.astype(int), :], np.eye(3)[s_batch_syst.astype(int), :]],
-                                         sample_weight = [x_batch_nom_w, x_batch_syst_w])
+        self.ae_fixed_adv.train_on_batch([x_batch_nom_s, x_batch_nom_b, x_batch_syst_s, x_batch_syst_b],
+                                         [np.eye(3)[s_batch_nom_s.astype(int), :], np.eye(3)[s_batch_nom_b.astype(int), :],
+                                          np.eye(3)[s_batch_syst_s.astype(int), :], np.eye(3)[s_batch_syst_b.astype(int), :]],
+                                         sample_weight = [x_batch_nom_w_s, x_batch_nom_w_b, x_batch_syst_w_s, x_batch_syst_w_b]
+                                        )
 
         # step discriminator
         self.enc.trainable = False
         self.disc.trainable = True
-        self.enc_disc.train_on_batch([x_batch_nom],
-                                     [y_batch_nom],
-                                     sample_weight = [x_batch_nom_w])
+        x_batch_nom_s, x_batch_nom_w_s, y_batch_nom_s, s_batch_nom_s = next(iter_nom_s)
+        x_batch_nom_b, x_batch_nom_w_b, y_batch_nom_b, s_batch_nom_b = next(iter_nom_b)
+        self.enc_disc.train_on_batch([x_batch_nom_s, x_batch_nom_b],
+                                         [y_batch_nom_s, y_batch_nom_b],
+                                         sample_weight = [x_batch_nom_w_s, x_batch_nom_w_b])
 
       if epoch % self.n_eval == 0:
-        x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
-        x_batch_syst, x_batch_syst_w, y_batch_syst, s_batch_syst = next(iter_sys)
-        tmp, rec_metric, adv_metric_nom, adv_metric_sys = self.aae.evaluate([x_batch_nom.values, x_batch_nom.values, x_batch_syst.values],
-                                                                            [x_batch_nom.values, np.eye(3)[s_batch_nom.astype(int), :], np.eye(3)[s_batch_syst.astype(int), :]],
-                                                                            sample_weight = [x_batch_nom_w.values, x_batch_nom_w.values, x_batch_syst_w.values],
-                                                                            verbose = 0)
-        disc_metric = self.enc_disc.evaluate(x_batch_nom.values, y_batch_nom.values, sample_weight = x_batch_nom_w.values, verbose = 0)
+        x_batch_nom_s, x_batch_nom_w_s, y_batch_nom_s, s_batch_nom_s = next(iter_test_nom_s)
+        x_batch_nom_b, x_batch_nom_w_b, y_batch_nom_b, s_batch_nom_b = next(iter_test_nom_b)
+        x_batch_syst_s, x_batch_syst_w_s, y_batch_syst_s, s_batch_syst_s = next(iter_test_sys_s)
+        x_batch_syst_b, x_batch_syst_w_b, y_batch_syst_b, s_batch_syst_b = next(iter_test_sys_b)
+        tmp, rec_metric_s, rec_metric_b, adv_metric_nom_s, adv_metric_nom_b, adv_metric_sys_s, adv_metric_sys_b = self.aae.evaluate(
+                                                                                            [x_batch_nom_s.values, x_batch_nom_b.values, x_batch_syst_s.values, x_batch_syst_b.values],
+                                                                                            [x_batch_nom_s.values, x_batch_nom_b.values,
+                                                                                             np.eye(3)[s_batch_nom_s.astype(int), :], np.eye(3)[s_batch_nom_b.astype(int), :],
+                                                                                             np.eye(3)[s_batch_syst_s.astype(int), :], np.eye(3)[s_batch_syst_b.astype(int), :],
+                                                                                            ],
+                                                                                            sample_weight = [x_batch_nom_w_s.values, x_batch_nom_w_b.values,
+                                                                                                             x_batch_nom_w_s.values, x_batch_nom_w_b.values,
+                                                                                                             x_batch_syst_w_s.values, x_batch_syst_w_b.values],
+                                                                                            verbose = 0)
+        x_batch_nom_s, x_batch_nom_w_s, y_batch_nom_s, s_batch_nom_s = next(iter_test_nom_s)
+        x_batch_nom_b, x_batch_nom_w_b, y_batch_nom_b, s_batch_nom_b = next(iter_test_nom_b)
+        tmp, disc_metric_s, disc_metric_b = self.enc_disc.evaluate([x_batch_nom_s.values, x_batch_nom_b.values],
+                                                                   [y_batch_nom_s.values, y_batch_nom_b.values],
+                                                                   sample_weight = [x_batch_nom_w_s.values, x_batch_nom_w_b.values],
+                                                                   verbose = 0)
+        disc_metric = disc_metric_s + disc_metric_b
+        rec_metric = rec_metric_s + rec_metric_b
+        adv_metric_nom = adv_metric_nom_s + adv_metric_nom_b
+        adv_metric_sys = adv_metric_sys_s + adv_metric_sys_b
 
         self.rec_loss_train = np.append(self.rec_loss_train, [rec_metric])
         self.adv_loss_nom_train = np.append(self.adv_loss_nom_train, [adv_metric_nom])
@@ -703,7 +773,7 @@ class AAE(object):
     if nnTaken > 0:
       plt.axvline(x = nnTaken, color = 'r', linestyle = '--', label = 'Configuration taken for further analysis')
     ax.set(xlabel='Batches', ylabel='Loss', title='Training evolution');
-    ax.set_ylim([1e-3, 10])
+    ax.set_ylim([1e-1, 100])
     ax.set_yscale('log')
     plt.legend(frameon = False)
     plt.savefig(filename)
