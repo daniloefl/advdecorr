@@ -72,7 +72,7 @@ class GAN(object):
 
   def __init__(self, n_iteration = 30050, n_pretrain = 0, n_adv = 5,
                n_batch = 128,
-               lambda_decorr = 10.0,
+               lambda_decorr = 1.0,
                n_eval = 50,
                no_adv = False):
     '''

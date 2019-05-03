@@ -65,7 +65,7 @@ class AAE(object):
                n_iteration = 30050,
                n_pretrain = 0,
                n_batch = 128,
-               lambda_decorr = 10.0,
+               lambda_decorr = 1.0,
                n_eval = 50,
                no_adv = False):
     '''
@@ -849,8 +849,8 @@ def main():
                     default='input.h5',
                     help='Name of the file from where to read the input. If the file does not exist, create it. (default: "input.h5")')
   parser.add_argument('--load-trained', dest='trained', action='store',
-                    default='5000',
-                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "5000")')
+                    default='30000',
+                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "30000")')
   parser.add_argument('--prefix', dest='prefix', action='store',
                     default='aae',
                     help='Prefix to be added to filenames when producing plots. (default: "aae")')
