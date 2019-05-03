@@ -97,7 +97,7 @@ def transformROOTToPandas(treeNameList = ["Nominal",
 
         df.loc[idx, 'sample'] = sample # 0 for bkg, 1 for signal
         df.loc[idx, 'syst'] = float(treeName != 'Nominal') # 0 for nominal, 1 for syst
-        df.loc[idx, 'weight'] = 1.0 #t[treeName][sampleName].EventWeight
+        df.loc[idx, 'weight'] = 1.0 #t[treeName][sampleName].EventWeightNoXSec
         for br in range(0, len(listBranches)):
           df.loc[idx, listBranches[br]] = getattr(t[treeName][sampleName], listBranches[br])
         idx += 1

@@ -72,7 +72,7 @@ class GAN(object):
 
   def __init__(self, n_iteration = 30050, n_pretrain = 0, n_adv = 5,
                n_batch = 128,
-               lambda_decorr = 1.0,
+               lambda_decorr = 10.0,
                n_eval = 50,
                no_adv = False):
     '''
@@ -228,11 +228,9 @@ class GAN(object):
     self.col_weight = self.file['df'].columns.get_loc('weight')
     self.sigma = self.file['df'].std(axis = 0).drop(['sample', 'syst', 'weight'], axis = 0)
     self.mean = self.file['df'].mean(axis = 0).drop(['sample', 'syst', 'weight'], axis = 0)
-    #sumWSignal = self.file['df'].loc[self.file['df']['sample'] == 1, 'weight'].sum()
-    #sumWBkg = self.file['df'].loc[self.file['df']['sample'] == 0, 'weight'].sum()
-    #sumW = sumWSignal + sumWBkg
-    #self.file['df'].loc[self.file['df']['sample'] == 0, 'weight'] *= sumWSignal/sumW
-    #self.file['df'].loc[self.file['df']['sample'] == 1, 'weight'] *= sumWBkg/sumW
+    self.sumWSignal = self.file['df'].loc[self.file['df']['sample'] == 1, 'weight'].sum()
+    self.sumWBkg = self.file['df'].loc[self.file['df']['sample'] == 0, 'weight'].sum()
+    self.sumW = self.sumWSignal + self.sumWBkg
 
   '''
   Generate test sample.
@@ -364,7 +362,7 @@ class GAN(object):
     for x,w,y,s in self.get_batch(origin = 'test', signal = False, syst = True): out_bkg_s.extend(self.disc.predict(x))
     out_bkg_s = np.array(out_bkg_s)
 
-    Nbins = 5
+    Nbins = 10
     bins = np.linspace(0, 1.0, Nbins+1)
     h_signal, be = np.histogram(out_signal, bins = bins)
     e_signal, _ = np.histogram(out_signal**2, bins = bins)
@@ -414,7 +412,7 @@ class GAN(object):
     ax[1].plot(bel, hr_bkg, color = 'b', linewidth = 2, drawstyle = 'steps-post')
     #ax[1].errorbar(bel, hr_bkg, yerr = er_bkg, color = 'b', drawstyle = 'steps-post')
 
-    ax[1].set_ylim([0.75, 1.25])
+    ax[1].set_ylim([0.5, 1.5])
     m = np.amax(np.concatenate( (h_signal, h_bkg, h_signal_s, h_bkg_s) ) )
     ax[0].set_ylim([0.0, 1.1*m])
 
@@ -488,8 +486,9 @@ class GAN(object):
         r = sorted(r)
         df = self.file.select('df', where = 'index = r')
         x_batch = (df.drop(['weight', 'sample', 'syst'], axis = 1) - self.mean)/self.sigma
-        x_batch_w = df.loc[:, 'weight']
         y_batch = df.loc[:, 'sample']
+        #wmask = ((y_batch == 1)*self.sumWBkg + (y_batch == 0)*self.sumWSig)/self.sumW
+        x_batch_w = df.loc[:, 'weight'] #*wmask
         s_batch = df.loc[:, 'syst']
         yield x_batch, x_batch_w, y_batch, s_batch
         i += 1
@@ -502,8 +501,9 @@ class GAN(object):
         r = sorted(r)
         df = self.file.select('df', where = 'index = r')
         x_batch = (df.drop(['weight', 'sample', 'syst'], axis = 1) - self.mean)/self.sigma
-        x_batch_w = df.loc[:, 'weight']
         y_batch = df.loc[:, 'sample']
+        #wmask = ((y_batch == 1)*self.sumWBkg + (y_batch == 0)*self.sumWSig)/self.sumW
+        x_batch_w = df.loc[:, 'weight'] #*wmask
         s_batch = df.loc[:, 'syst']
         yield x_batch, x_batch_w, y_batch, s_batch
       
