@@ -538,6 +538,21 @@ class GAN(object):
                                        [y_batch_nom_s, y_batch_nom_b],
                                        sample_weight = [x_batch_nom_w_s, x_batch_nom_w_b])
 
+        n_adv = self.n_adv
+        for k in range(0, n_adv):
+          x_batch_nom_s, x_batch_nom_w_s, y_batch_nom_s, s_batch_nom_s = next(iter_nom_s)
+          x_batch_nom_b, x_batch_nom_w_b, y_batch_nom_b, s_batch_nom_b = next(iter_nom_b)
+          x_batch_syst_s, x_batch_syst_w_s, y_batch_syst_s, s_batch_syst_s = next(iter_sys_s)
+          x_batch_syst_b, x_batch_syst_w_b, y_batch_syst_b, s_batch_syst_b = next(iter_sys_b)
+
+          self.disc.trainable = False
+          self.adv.trainable = True
+          self.disc_fixed_adv.train_on_batch([x_batch_nom_s, x_batch_nom_b, x_batch_syst_s, x_batch_syst_b],
+                                             [np.eye(3)[s_batch_nom_s.astype(int),:], np.eye(3)[s_batch_nom_b.astype(int),:],
+                                              np.eye(3)[s_batch_syst_s.astype(int),:], np.eye(3)[s_batch_syst_b.astype(int),:]],
+                                             sample_weight = [x_batch_nom_w_s, x_batch_nom_w_b,
+                                                              x_batch_syst_w_s, x_batch_syst_w_b])
+
       if not self.no_adv:
         # step 0 - pretraining
         if epoch < self.n_pretrain:
