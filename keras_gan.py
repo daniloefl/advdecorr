@@ -604,7 +604,7 @@ class GAN(object):
         disc_metric += self.disc.evaluate(x.values, y.values, sample_weight = w.values, verbose = 0)
         x,w,y,s = next(iter_test_nom_b)
         disc_metric += self.disc.evaluate(x.values, y.values, sample_weight = w.values, verbose = 0)
-        if epoch >= self.n_pretrain and not self.no_adv:
+        if epoch >= self.n_pretrain:
           x,w,y,s = next(iter_test_nom_s)
           adv_metric_nom += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), np.eye(3)[s.astype(int),:], sample_weight = w.values, verbose = 0)
           x,w,y,s = next(iter_test_nom_b)

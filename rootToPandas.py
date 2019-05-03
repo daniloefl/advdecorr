@@ -10,10 +10,12 @@ from __future__ import print_function
 
 # use this to read the ROOT file and save it in a .h5 file to use with Pandas (faster)
 def transformROOTToPandas(treeNameList = ["Nominal",
-                                          'JET_JER_SINGLE_NP__1up'],
-                                          #'JET_SR1_JET_GroupedNP_1__1up', 'JET_SR1_JET_GroupedNP_2__1up', 'JET_SR1_JET_GroupedNP_3__1up',
+                                          'slope',
+                                          #'JET_JER_SINGLE_NP__1up',
+                                          #'JET_SR1_JET_GroupedNP_1__1up',# 'JET_SR1_JET_GroupedNP_2__1up', 'JET_SR1_JET_GroupedNP_3__1up',
                                           #'TAUS_TRUEHADTAU_SME_TES_DETECTOR__1up', 'TAUS_TRUEHADTAU_SME_TES_INSITU__1up',
-                                          #'TAUS_TRUEHADTAU_SME_TES_MODEL__1up'],
+                                          #'TAUS_TRUEHADTAU_SME_TES_MODEL__1up'
+                                         ],
                           signalName = "vbf_hh_l1cvv2cv1.root",
                           bkgName = "ttbar_PwPy8EG.root"):
   import ROOT
@@ -30,7 +32,7 @@ def transformROOTToPandas(treeNameList = ["Nominal",
   t = {}
   listBranches = [
    # used in the paper
-   'diHiggsM', 'diTauMMCM', 'diJetM', 'diTauDR', 'diJetDR', 'METCentrality',
+   'diHiggsM', 'diHiggsPt', 'diTauMMCM', 'diJetM', 'diTauDR', 'diJetDR', 'METCentrality',
    #'diHiggsPt',
    # extra for VBF
    'diJetVBFM', 'diJetVBFPt',
@@ -81,16 +83,16 @@ def transformROOTToPandas(treeNameList = ["Nominal",
 
         if t[treeName][sampleName].NJetsbtagged < 2: continue # added cut to follow paper
 
-        if ptDrop and sample == 0:
+        if ptDrop and sample == 0 and treeName == 'slope':
           prob = 1.0
-          if t[treeName][sampleName].diHiggsM < 400:
-            prob = 0.95
-          elif t[treeName][sampleName].diHiggsPt < 600:
-            prob = 0.90
-          elif t[treeName][sampleName].diHiggsPt < 800:
+          if t[treeName][sampleName].diHiggsPt < 50:
             prob = 0.85
+          elif t[treeName][sampleName].diHiggsPt < 100:
+            prob = 0.90
+          elif t[treeName][sampleName].diHiggsPt < 150:
+            prob = 0.95
           else:
-            prob = 0.70
+            prob = 0.99
           r = np.random.uniform(0.0, 1.0)
           if r > prob:
             continue
@@ -125,15 +127,14 @@ def transformROOTToPandas(treeNameList = ["Nominal",
   hdf.put('test_nominal', test_nominal, format = 'table')
   hdf.close()
 
-def plotRatio(num = "slope", den = "Nominal", var = "diHiggsPt"):
+def plotRatio(num = "Variation", den = "Nominal", var = "diHiggsPt"):
   import matplotlib as mpl
   import matplotlib.pyplot as plt
   import numpy as np
   import pandas as pd
   import seaborn as sns
   import copy
-  dfNum = pd.read_hdf('input_%s.h5' % num, 'df')
-  dfDen = pd.read_hdf('input_%s.h5' % den, 'df')
+  df = pd.read_hdf('input.h5', 'df')
   mpl.rcParams.update({'xtick.labelsize': 14, 'ytick.labelsize': 14,
                        'axes.titlesize': 14, 'axes.labelsize': 14,
                        'legend.fontsize': 14, 'font.size': 14})
@@ -146,18 +147,20 @@ def plotRatio(num = "slope", den = "Nominal", var = "diHiggsPt"):
   #fig, (ax1, ax2) = plt.subplots(nrows=2)
   ns = []
   ns_err = []
-  c, bins = np.histogram(dfNum[var], normed = False, bins = 20, weights = dfNum["EventWeight"])
+  cutNum = (df['syst'] == 1) & (df['sample'] == 0)
+  cutDen = (df['syst'] == 0) & (df['sample'] == 0)
+  c, bins = np.histogram(df.loc[cutDen, var], normed = False, bins = 20, weights = df['weight'][cutDen])
   for k in range(len(bins-1)):
     if np.sum(c[0:k])/np.sum(c) > 0.99:
       bins = np.arange(bins[0], bins[k], (bins[k] - bins[0])/20)
       break
-  c, b = np.histogram(dfNum[var], normed = False, bins = bins, weights = dfNum["EventWeight"])
+  c, b = np.histogram(df.loc[cutNum, var], normed = False, bins = bins, weights = df['weight'][cutNum])
   ns.append(c)
-  c, b = np.histogram(dfDen[var], normed = False, bins = bins, weights = dfDen["EventWeight"])
+  c, b = np.histogram(df.loc[cutDen, var], normed = False, bins = bins, weights = df['weight'][cutDen])
   ns.append(c)
-  c, b = np.histogram(dfNum[var], normed = False, bins = bins, weights = dfNum["EventWeight"]**2)
+  c, b = np.histogram(df.loc[cutNum, var], normed = False, bins = bins, weights = df['weight'][cutNum]**2)
   ns_err.append(np.sqrt(c))
-  c, b = np.histogram(dfDen[var], normed = False, bins = bins, weights = dfDen["EventWeight"]**2)
+  c, b = np.histogram(df.loc[cutDen, var], normed = False, bins = bins, weights = df['weight'][cutDen]**2)
   ns_err.append(np.sqrt(c))
   binwidth = bins[1]-bins[0]
   s = binwidth*0.5
@@ -188,7 +191,7 @@ def plotRatio(num = "slope", den = "Nominal", var = "diHiggsPt"):
   ax1.set_ylabel("Entries")
   ax2.set_ylabel('Ratio (%s/%s)' % (num, den))
   ax2.set_xlabel(var)
-  ax2.set_ylim(0.5, 1.5)
+  ax2.set_ylim(0.8, 1.2)
   yticks = ax1.yaxis.get_major_ticks() 
   yticks[0].label1.set_visible(False)
   plt.savefig("rootToPandas_ratio_%s_%s_%s.pdf" % (var, num, den))
@@ -197,7 +200,7 @@ def plotRatio(num = "slope", den = "Nominal", var = "diHiggsPt"):
 
 # only needs to be called once: to make the data_Nominal.h5 file
 # using the h5 file is faster than using ROOT files
-transformROOTToPandas()
+#transformROOTToPandas()
 
-#for var in ["diHiggsM", "diJetM", "diTauMMCM"]:
-#  plotRatio(var = var)
+for var in ["diHiggsM", 'diHiggsPt', "diJetM", "diTauMMCM"]:
+  plotRatio(var = var)
