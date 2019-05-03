@@ -85,14 +85,14 @@ def transformROOTToPandas(treeNameList = ["Nominal",
 
         if ptDrop and sample == 0 and treeName == 'slope':
           prob = 1.0
-          if t[treeName][sampleName].diHiggsPt < 50:
+          if t[treeName][sampleName].diHiggsM < 300:
+            prob = 0.80
+          elif t[treeName][sampleName].diHiggsM < 400:
             prob = 0.85
-          elif t[treeName][sampleName].diHiggsPt < 100:
+          elif t[treeName][sampleName].diHiggsM < 500:
             prob = 0.90
-          elif t[treeName][sampleName].diHiggsPt < 150:
-            prob = 0.95
           else:
-            prob = 0.99
+            prob = 0.95
           r = np.random.uniform(0.0, 1.0)
           if r > prob:
             continue
