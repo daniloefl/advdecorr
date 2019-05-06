@@ -54,7 +54,7 @@ def getCrossSection(initialP, m_res):
   w = (1.0/(64.*np.pi*np.pi*s_hat)) # * |k1^prime|/|k1| = 1.0
   w *= np.sin(theta1)*np.pi*np.pi   # sin(theta1) from dOmega, and as we integrate the cross section in a and b and not phi1 and theta1, add two factors of np.pi from the Jacobian
   # finally multiply by the matrix element squared
-  w *= 1.0/np.pow(s_hat - m_res**2, 2)
+  w *= 1.0/np.power(s_hat - m_res**2, 2)
   return [w, pt_pp, pt_p1, pt_p2, eta1, eta2, phi1, phi2, s_hat]
 
 '''
@@ -71,14 +71,14 @@ def make_sample(syst, N):
   # thermalise and get w_max
   w_sig_max = 0.
   for i in range(0, int(0.1*N)):
-    initialP = np.random(0., 120.) # initial electron momentum
+    initialP = np.random.uniform(0., 120.) # initial electron momentum
     unc_mass = syst*np.random.normal(0., 10.) # uncertainty of 10 GeV on the mass
     w, pt_pp, pt_p1, pt_p2, eta1, eta2, phi1, phi2, s_hat = getCrossSection(initialP, m_res = 50. + unc_mass)
     if w > w_sig_max:
       w_sig_max = w
   w_bkg_max = 0.
   for i in range(0, int(0.1*N)):
-    initialP = np.random(0., 120.) # initial electron momentum
+    initialP = np.random.uniform(0., 120.) # initial electron momentum
     w, pt_pp, pt_p1, pt_p2, eta1, eta2, phi1, phi2, s_hat = getCrossSection(initialP, m_res = 0.)
     if w > w_bkg_max:
       w_bkg_max = w
@@ -91,7 +91,7 @@ def make_sample(syst, N):
     w = 0
     # get sample and unweight
     while True:
-      initialP = np.random(0., 120.) # initial electron momentum
+      initialP = np.random.uniform(0., 120.) # initial electron momentum
       r = np.random.uniform(0., 1.)
       if isSignal > 0.5:
         unc_mass = syst*np.random.normal(0., 10.) # uncertainty of 10 GeV on the mass
@@ -102,6 +102,7 @@ def make_sample(syst, N):
         wmax = w_bkg_max
       if r < w/wmax:
         break
+    print("Accepted event %d" % i)
     data[i, 0] = np.sqrt(s_hat)
     data[i, 1] = pt_pp
     data[i, 2] = pt_p1
@@ -120,7 +121,7 @@ def prepare_input(filename = 'input_ee.h5'):
   import sklearn.datasets
   # make input file
   N = 10000
-  self.file = pd.HDFStore(filename, 'w')
+  file = pd.HDFStore(filename, 'w')
   x = {}
   all_data = np.zeros(shape = (0, 3+2))
   for t in ['train', 'test']:
@@ -133,7 +134,7 @@ def prepare_input(filename = 'input_ee.h5'):
     print('Checking nans in %s' % t)
     check_nans(all_data)
   df = pd.DataFrame(all_data, columns = ['sample', 'syst', 'weight']+names)
-  self.file.put('df', df, format = 'table', data_columns = True)
+  file.put('df', df, format = 'table', data_columns = True)
 
   for t in ['train', 'test']:
     if t == 'train':
@@ -148,13 +149,13 @@ def prepare_input(filename = 'input_ee.h5'):
       sig = pd.DataFrame( ((df['sample'] == 1) & (df.index >= 2*N)))
       syst = pd.DataFrame( ((df['syst'] == 1) & (df.index >= 2*N)))
       nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index >= 2*N)))
-    self.file.put('%s' % t, part, format = 'table')
-    self.file.put('%s_bkg' % t, bkg, format = 'table')
-    self.file.put('%s_sig'% t, sig, format = 'table')
-    self.file.put('%s_syst' % t, syst, format = 'table')
-    self.file.put('%s_nominal' % t, nominal, format = 'table')
+    file.put('%s' % t, part, format = 'table')
+    file.put('%s_bkg' % t, bkg, format = 'table')
+    file.put('%s_sig'% t, sig, format = 'table')
+    file.put('%s_syst' % t, syst, format = 'table')
+    file.put('%s_nominal' % t, nominal, format = 'table')
 
-  self.file.close()
+  file.close()
 
 def check_nans(x):
   print("Dump of NaNs:")
