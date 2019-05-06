@@ -16,6 +16,8 @@ import numpy as np
 import pandas as pd
 import h5py
 
+names = ['m_pp', 'pt_pp', 'pt_p1', 'pt_p2', 'eta1', 'eta2', 'phi1', 'phi2']
+
 '''
 Simulate e e > e e, assuming it is produced by an s-channel diagram with intermediate particle with mass m_res.
 '''
@@ -65,7 +67,7 @@ Background generated under the model: prob(s hat) = 1/(s hat)^2.
 Signal generated with 50% probability relative to background.
 '''
 def make_sample(syst, N):
-  names = ['m_pp', 'pt_pp', 'pt_p1', 'pt_p2', 'eta1', 'eta2', 'phi1', 'phi2']
+  global names
   data = np.zeros(shape = (N, len(names)))
   data_t = np.zeros(shape = (N,))
   # thermalise and get w_max
@@ -102,7 +104,8 @@ def make_sample(syst, N):
         wmax = w_bkg_max
       if r < w/wmax:
         break
-    print("Accepted event %d" % i)
+    if i % 1000 == 0:
+      print("Accepted event %d / %d" % (i, N))
     data[i, 0] = np.sqrt(s_hat)
     data[i, 1] = pt_pp
     data[i, 2] = pt_p1
@@ -118,12 +121,14 @@ def make_sample(syst, N):
 Generate toy sample and save it on disk.
 '''
 def prepare_input(filename = 'input_ee.h5'):
+  global names
   import sklearn.datasets
   # make input file
   N = 10000
   file = pd.HDFStore(filename, 'w')
   x = {}
-  all_data = np.zeros(shape = (0, 3+2))
+  NumberOfVars = len(names)
+  all_data = np.zeros(shape = (0, 3+NumberOfVars))
   for t in ['train', 'test']:
     for s in [0, 1]:
       data, data_t, names = make_sample(syst = s, N = N)
@@ -237,7 +242,6 @@ def plotRatio(filename = 'input_ee.h5', num = "Variation", den = "Nominal", var 
 if __name__ == '__main__':
   filename = 'input_ee.h5'
   prepare_input(filename)
-  names = ['m_pp', 'pt_pp', 'pt_p1', 'pt_p2', 'eta1', 'eta2', 'phi1', 'phi2']
   for var in names:
     plotRatio(filename, var = var)
 
