@@ -1,12 +1,13 @@
 FROM python:3
 
-ADD production/classify.py production/
-ADD keras_gan.py /
-ADD keras_aae.py /
-ADD utils.py /
-ADD generateToys.py /
+MAINTANER Danilo Ferreira de Lima "daniloefl@gmail.com"
 
-RUN pip install numpy h5py pandas keras matplotlib
+COPY ./app/web.py /app/web.py
+WORKDIR /app
 
-CMD ["python", "./production/classify.py"]
+RUN pip install Flask numpy h5py pandas keras matplotlib
+
+ENTRYPOINT [ "python" ]
+
+CMD ["app/web.py"]
 
