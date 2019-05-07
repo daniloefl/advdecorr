@@ -1,0 +1,41 @@
+{% extends 'basic.html' %}
+
+{% block content %}
+
+    <div class="row featurette">
+      <div class="col-md-2">
+      </div>
+      <div class="col-md-8">
+
+        <br>
+        <br>
+        <br>
+
+        <h2 class="featurette-heading">Classifier<br><span class="text-muted">Results</span></h2>
+
+        <p class="lead justify">
+        </p>
+
+        <p class="lead justify">
+        After analysing your data, we have reached the following conclusions for the probabilities that
+        each sample is signal.
+        </p>
+
+        <p class="lead justify">
+        </p>
+
+        <p class="lead justify">
+          <table border=0>
+            <tr><th>Sample number</th><th>p-value</th></tr>
+            {% for i,value in result.items() %}
+            <tr><th>{{ i }}</th><td>{{ value.pvalue }}</td></tr>
+            {% endfor %}
+          </table>
+        </p>
+
+      </div>
+      <div class="col-md-2">
+      </div>
+    </div>
+
+{% endblock %}

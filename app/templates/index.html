@@ -1,0 +1,46 @@
+{% extends 'basic.html' %}
+
+{% block content %}
+
+    <div class="row featurette">
+      <div class="col-md-2">
+      </div>
+      <div class="col-md-8">
+
+        <br>
+        <br>
+        <br>
+
+        <h2 class="featurette-heading">Classifier<br><span class="text-muted">Optimise your selection</span></h2>
+
+        <p class="lead justify">
+        </p>
+
+        <p class="lead justify">
+        Here you can input data to identify how likely it is to come from a background or signal sample.
+        Input your data and you will have high level of confidence on what to expect!
+        </p>
+
+        <p class="lead justify">
+        Please enter one sample per line, separating the values of each variable in a sample with a space.
+        </p>
+
+        <p class="lead justify">
+        </p>
+
+        <p class="lead justify">
+        <form action="{{ url_for('result') }}" method="post">
+          <table border=0>
+            <tr><th></th><th>Content</th></tr>
+            <tr><th>Input data</th><td><textarea rows="40" cols="80" name="data"></textarea></td></tr>
+            <tr><th></th><td><input type="submit" value="Submit"/></td></tr>
+          </table>
+        </form>
+        </p>
+
+      </div>
+      <div class="col-md-2">
+      </div>
+    </div>
+
+{% endblock %}
