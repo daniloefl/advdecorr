@@ -30,7 +30,6 @@ from keras.optimizers import Adam, SGD, RMSprop
 from keras.losses import binary_crossentropy, mean_squared_error
 
 import keras as K
-from utils import LayerNormalization
 
 class Classify(object):
   '''
@@ -177,7 +176,7 @@ class Classify(object):
     json_file = open('%s.json' % disc_filename, 'r')
     loaded_model_json = json_file.read()
     json_file.close()
-    self.disc = K.models.model_from_json(loaded_model_json, custom_objects={'LayerNormalization': LayerNormalization})
+    self.disc = K.models.model_from_json(loaded_model_json)
     self.disc.load_weights("%s.h5" % disc_filename)
 
     self.disc_input = K.layers.Input(shape = (self.n_dimensions,), name = 'disc_input')
