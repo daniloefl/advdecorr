@@ -70,7 +70,7 @@ class GAN(object):
   4) Go back to 2 and repeat this n_iteration times.
   '''
 
-  def __init__(self, n_iteration = 30050, n_pretrain = 400, n_adv = 5,
+  def __init__(self, n_iteration = 30050, n_pretrain = 500, n_adv = 5,
                n_batch = 256,
                lambda_decorr = 1.0,
                n_eval = 50,
