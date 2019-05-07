@@ -35,13 +35,9 @@ from utils import LayerNormalization
 
 def smoothen(y):
   return y
-  N = 10
-  box = np.ones(N)/float(N)
-  return np.convolve(y, box, mode = 'same')
 
 def rec_loss(y_true, y_pred):
   return tf.reduce_mean(tf.reduce_sum(tf.square(y_true - y_pred), axis = 1), axis = 0)
-  #return tf.reduce_mean(tf.reduce_sum(y_true*tf.log(y_pred), axis = 1), axis = 0)
 
 class AAE(object):
   '''
@@ -354,63 +350,6 @@ class AAE(object):
     self.sumWSignal = self.file['df'].loc[self.file['df']['sample'] == 1, 'weight'].sum()
     self.sumWBkg = self.file['df'].loc[self.file['df']['sample'] == 0, 'weight'].sum()
     self.sumW = self.sumWSignal + self.sumWBkg
-
-  '''
-  Generate test sample.
-  :param adjust_signal_weights: If True, weights the signal by the ratio of signal to background weights, so that the training considers both equally.
-  '''
-  def prepare_input(self, filename = 'input_preprocessed.h5', adjust_signal_weights = True, set_unit_weights = True):
-    import sklearn.datasets
-    # make input file
-    N = 10000
-    self.file = pd.HDFStore(filename, 'w')
-    x = {}
-    all_data = np.zeros(shape = (0, 3+2))
-    for t in ['train', 'test']:
-      for s in [0, 1]:
-        #signal = np.random.normal(loc = -1.0 + s*0.1, scale = 0.5 + s*0.1, size = (N, 2))
-        #bkg    = np.random.normal(loc =  1.0 - s*0.1, scale = 0.5 - s*0.1, size = (N, 2))
-        #data   = np.append(signal, bkg, axis = 0)
-        #data_t = np.append(np.ones(N), np.zeros(N))
-        data, data_t = sklearn.datasets.make_moons(n_samples = 2*N, noise = 0.1)
-        data[:,0] += 0.2*s
-        data_w = np.ones(2*N)
-        data_s = s*np.ones(2*N)
-        add_all_data = np.concatenate( (data_t[:,np.newaxis], data_s[:, np.newaxis], data_w[:,np.newaxis], data), axis=1)
-        all_data = np.concatenate((all_data, add_all_data), axis = 0)
-      print('Checking nans in %s' % t)
-      self.check_nans(all_data)
-    df = pd.DataFrame(all_data, columns = ['sample', 'syst', 'weight', 'A', 'B'])
-    self.file.put('df', df, format = 'table', data_columns = True)
-
-    for t in ['train', 'test']:
-      if t == 'train':
-        part = pd.DataFrame( (df.index < 4*N) )
-        bkg = pd.DataFrame( ((df['sample'] == 0) & (df.index < 4*N)))
-        sig = pd.DataFrame( ((df['sample'] == 1) & (df.index < 4*N)))
-        syst = pd.DataFrame( ((df['syst'] == 1) & (df.index < 4*N)))
-        nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index < 4*N)))
-      else:
-        part = pd.DataFrame( (df.index >= 4*N) )
-        bkg = pd.DataFrame( ((df['sample'] == 0) & (df.index >= 4*N)))
-        sig = pd.DataFrame( ((df['sample'] == 1) & (df.index >= 4*N)))
-        syst = pd.DataFrame( ((df['syst'] == 1) & (df.index >= 4*N)))
-        nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index >= 4*N)))
-      self.file.put('%s' % t, part, format = 'table')
-      self.file.put('%s_bkg' % t, bkg, format = 'table')
-      self.file.put('%s_sig'% t, sig, format = 'table')
-      self.file.put('%s_syst' % t, syst, format = 'table')
-      self.file.put('%s_nominal' % t, nominal, format = 'table')
-
-    self.file.close()
-
-
-  def check_nans(self, x):
-    print("Dump of NaNs:")
-    nan_idx = np.where(np.isnan(x))
-    print(x[nan_idx])
-
-    assert len(x[nan_idx]) == 0
 
   def plot_input_correlations(self, filename):
     import matplotlib.pyplot as plt
@@ -883,8 +822,8 @@ def main():
                     default='result',
                     help='Directory where results are saved. (default: "result")')
   parser.add_argument('--input-file', dest='input', action='store',
-                    default='input.h5',
-                    help='Name of the file from where to read the input. If the file does not exist, create it. (default: "input.h5")')
+                    default='input_toys.h5',
+                    help='Name of the file from where to read the input. (default: "input_toys.h5")')
   parser.add_argument('--load-trained', dest='trained', action='store',
                     default='30000',
                     help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "30000")')
@@ -907,9 +846,6 @@ def main():
     os.makedirs(args.network_dir)
 
   network = AAE(no_adv = args.no_adv)
-  # apply pre-processing if the preprocessed file does not exist
-  if not os.path.isfile(args.input):
-    network.prepare_input(filename = args.input)
 
   # read it from disk
   network.read_input_from_files(filename = args.input)

@@ -182,11 +182,11 @@ def plotRatio(filename = 'input_ee.h5', num = "Variation", den = "Nominal", var 
   ax2.set_ylim(0.8, 1.2)
   yticks = ax1.yaxis.get_major_ticks() 
   yticks[0].label1.set_visible(False)
-  plt.savefig("produceToys_ratio_%s_%s_%s.pdf" % (var, num, den))
+  plt.savefig("generateToys_ratio_%s_%s_%s.pdf" % (var, num, den))
   plt.close("all")
 
 if __name__ == '__main__':
-  filename = 'input_ee.h5'
+  filename = 'input_toys.h5'
   prepare_input(filename)
   for var in names:
     plotRatio(filename, var = var)
