@@ -70,7 +70,7 @@ class GAN(object):
   4) Go back to 2 and repeat this n_iteration times.
   '''
 
-  def __init__(self, n_iteration = 30050, n_pretrain = 0, n_adv = 5,
+  def __init__(self, n_iteration = 30050, n_pretrain = 400, n_adv = 5,
                n_batch = 256,
                lambda_decorr = 1.0,
                n_eval = 50,
@@ -529,12 +529,19 @@ class GAN(object):
 
       if not self.no_adv:
         # step 0 - pretraining
-        if epoch < self.n_pretrain:
+        if epoch < self.n_pretrain*0.5:
           x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
           self.disc.trainable = True
           self.disc.train_on_batch([x_batch_nom],
                                    [y_batch_nom],
                                    sample_weight = [x_batch_nom_w])
+        if epoch > 0.5*self.n_pretrain and epoch < self.n_pretrain:
+          x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any)
+          self.disc.trainable = False
+          self.adv.trainable = True
+          self.disc_fixed_adv.train_on_batch([x_batch_any],
+                                             [s_batch_any],
+                                             sample_weight = [x_batch_any_w])
 
         if epoch >= self.n_pretrain:
           # step adv.
@@ -565,13 +572,12 @@ class GAN(object):
         adv_metric_syst = 0
         x,w,y,s = next(iter_test_nom)
         disc_metric += self.disc.evaluate(x.values, y.values, sample_weight = w.values, verbose = 0)
-        if epoch >= self.n_pretrain:
-          x,w,y,s = next(iter_test_any)
-          adv_metric = self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
-          x,w,y,s = next(iter_test_nom)
-          adv_metric_nom += self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
-          x,w,y,s = next(iter_test_sys)
-          adv_metric_syst += self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
+        x,w,y,s = next(iter_test_any)
+        adv_metric = self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
+        x,w,y,s = next(iter_test_nom)
+        adv_metric_nom += self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
+        x,w,y,s = next(iter_test_sys)
+        adv_metric_syst += self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
         if adv_metric == 0: adv_metric = 1e-20
 
         self.adv_loss_train = np.append(self.adv_loss_train, [adv_metric])
@@ -683,7 +689,7 @@ def main():
                     default='result',
                     help='Directory where results are saved. (default: "result")')
   parser.add_argument('--input-file', dest='input', action='store',
-                    default='input.h5',
+                    default='input_ee.h5',
                     help='Name of the file from where to read the input. If the file does not exist, create it. (default: "input.h5")')
   parser.add_argument('--load-trained', dest='trained', action='store',
                     default='30000',
