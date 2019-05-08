@@ -1,17 +1,30 @@
 # app/web.py
 
-import flask
+from flask import Flask, render_template, request
+from flask_bootstrap import Bootstrap
+from flask_nav import Nav
+from flask_nav.elements import Navbar, View
 
-app = flask.Flask(__name__)
+app = Flask(__name__)
+bootstrap = Bootstrap(app)
+nav = Nav()
+nav.init_app(app)
+
+@nav.navigation()
+def mynavbar():
+    return Navbar(
+        'Classifier',
+        View('Home', 'index'),
+    )
 
 @app.route('/')
 @app.route('/home')
-def web():
-  return flask.render_template('index.html')
+def index():
+  return render_template('index.html')
 
 @app.route('/result', methods = ['POST'])
 def result():
-  data = flask.request.form['data']
+  data = request.form['data']
   result = {}
   i = 0
   for line in data.split('\n'):
@@ -19,7 +32,7 @@ def result():
     result[i] = {'pvalue' : 0}
     for k in range(0, len(content)):
       result[i]['input_%d' %k] = content[k]
-  return flask.render_template('result.html', result = result)
+  return render_template('result.html', result = result)
 
 if __name__ == '__main__':
   app.run(debug=True, host='0.0.0.0')

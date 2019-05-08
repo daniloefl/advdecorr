@@ -3,12 +3,12 @@
 /* Padding below the footer and lighter body text */
 
 body {
-  padding-top: 3rem;
   padding-bottom: 0;
   margin-bottom: 0;
   margin-left: 0;
   margin-right: 0;
   color: #5a5a5a;
+  hieght: 100%;
 }
 
 .nav-link {
@@ -20,6 +20,11 @@ body {
    margin-right: 2rem;
    overflow:hidden;
    width: 100%;
+}
+
+#fillup {
+  min-height: 100%;
+  position: relative;
 }
 
 #sidebar ul {
@@ -154,12 +159,12 @@ a.btn {
   text-align: center;
   background-color: #343a40;
   padding-top: 1rem;
-  padding-bottom: 0;
+  padding-bottom: 1rem;
   padding-left: 0;
   padding-right: 0;
-  position:absolute;
   bottom:0;
   width:100%;
+  margin-bottom: 0;
 }
 .page-footer p:last-child {
   margin-bottom: 0;
