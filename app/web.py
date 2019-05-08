@@ -4,6 +4,7 @@ from flask import Flask, render_template, request
 from flask_bootstrap import Bootstrap
 from flask_nav import Nav
 from flask_nav.elements import Navbar, View
+from flask_restful import Resource, Api
 
 app = Flask(__name__)
 bootstrap = Bootstrap(app)
