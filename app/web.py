@@ -34,7 +34,7 @@ def result():
   result = {}
   for i in range(0, N):
     result[i] = {}
-    result[i]['pvalue'] = requests.put('http://localhost:5001/classify', data={'i': i, 'A': A[i], 'B': B[i]})
+    result[i]['pvalue'] = requests.put('http://localhost:5001/classify', data={'i': i, 'A': A[i], 'B': B[i]}).json()[str(i)]
     result[i]['A'] = A[i]
     result[i]['B'] = B[i]
   return render_template('result.html', result = result)
