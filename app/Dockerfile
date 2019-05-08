@@ -8,7 +8,7 @@ COPY ./static/ /static/
 COPY ./templates/ /templates/
 WORKDIR /
 
-RUN pip install flask flask-restful flask-bootstrap flask-nav numpy h5py pandas keras matplotlib
+RUN pip install flask requests flask-bootstrap flask-nav numpy
 
 ENTRYPOINT [ "python" ]
 
