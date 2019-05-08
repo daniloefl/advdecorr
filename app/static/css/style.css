@@ -3,85 +3,25 @@
 /* Padding below the footer and lighter body text */
 
 body {
-  padding-bottom: 0;
-  margin-bottom: 0;
-  margin-left: 0;
-  margin-right: 0;
   color: #5a5a5a;
-  height: 100%;
-  min-height: 100%;
-}
-
-.nav-link {
-   color:inherit;
-   text-decoration: none;
-}
-
-#sidebar {
-   margin-right: 2rem;
-   overflow:hidden;
-   width: 100%;
-}
-
-.fillup {
-  height: 100%;
-  min-height: 10em;
-  position: relative;
-}
-
-#sidebar ul {
-  margin-top: 3rem;
-  padding: 20px;
-  border-radius: 25px;
-  color: #999;
-  background-color: #343a40;
-}
-
-#sidebar .nav-pills {
-  position: fixed;
-  display: block;
-}
-
-#sidebar .nav-pills li {
-  display: block;
-}
-
-#sidebar .nav-pills li .nav-link {
-  text-decoration: none;
-  color: #999;
-  background-color: #343a40;
-}
-
-#sidebar .nav-pills li .nav-link.active {
-  font-weight: bold;
-  color: #ffffff;
-  background-color: #000000;
-}
-
-#sidebar .nav-pills li a:hover {
-  text-decoration: none;
-  color: #ffffff;
-  background-color: #000000;
-}
-
-.navbar-brand {
-   color:inherit;
-   text-decoration: none;
 }
 
 a {
-   text-decoration: underline;
-   text-decoration-style: dotted;
    transition:all 0.3s ease;
    color: rgb(51, 122, 183) ;
    word-wrap: break-word;
    white-space: initial;
+   text-decoration: none;
+}
+
+.wrap {
+  min-height: 40em;
+  height: 100%;
 }
 
 a:hover {
    color: blue;
-   text-decoration: underline;
-   text-decoration-style: dotted;
+   text-decoration: none;
 }
 
 a.btn {
@@ -89,68 +29,9 @@ a.btn {
    text-decoration: none;
 }
 
-.block-link {
-   color:inherit;
-   text-decoration: none;
-}
-
-.block-link:link {
-   color:inherit;
-   text-decoration: none;
-}
-
-.block-link:hover {
-   color:inherit;
-   text-decoration: none;
-}
-
-.block-link:visited {
-   color:inherit;
-   text-decoration: none;
-}
-
-
 .justify {
   text-align: justify;
 }
-
-.vcenter {
-    display: inline-block;
-    vertical-align: middle;
-    float: none;
-}
-
-.marketing {
-  margin-bottom: 3rem;
-}
-
-.marketing .col-lg-4 {
-  margin-bottom: 1.5rem;
-  text-align: center;
-}
-.marketing h2 {
-  font-weight: normal;
-}
-.marketing .col-lg-4 p {
-  margin-right: .75rem;
-  margin-left: .75rem;
-}
-
-
-/* Featurettes
- * ------------------------- */
-
-.featurette-divider {
-  margin: 3rem 0; /* Space out the Bootstrap <hr> more */
-}
-
-/* Thin out the marketing headings */
-.featurette-heading {
-  font-weight: 300;
-  line-height: 1;
-  letter-spacing: -.05rem;
-}
-
 
 /*
  * Footer
@@ -164,24 +45,23 @@ a.btn {
   padding-bottom: 1rem;
   padding-left: 0;
   padding-right: 0;
-  bottom:0;
   height: 3em;
+  bottom:0;
+  position: relative;
   width:100%;
+  margin-top: 4em;
   margin-bottom: 0;
 }
+
 .page-footer p:last-child {
   margin-bottom: 0;
 }
 
 .page-footer a {
    color: #999;
-   text-decoration: underline;
-   text-decoration-style: dotted;
 }
 
 .page-footer a:hover {
    color: #999;
-   text-decoration: underline;
-   text-decoration-style: dotted;
 }
 

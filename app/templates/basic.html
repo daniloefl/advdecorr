@@ -12,21 +12,26 @@
 {{ nav.mynavbar.render() }}
 {% endblock %}
 
+
 {% block content %}
+
+    <div class="wrap">
 
     <div id="theTop"></div>
 
-    <br>
-
-    <div class="fillup container-fluid marketing">
+    <div class="container">
 
     {% block my_content %}
     {% endblock %}
 
     </div>
 
-    <footer class="page-footer">
-      <p><a href="#theTop"><i class="fa fa-arrow-up" aria-hidden="true"></i></a>  <a href="#theTop">Back to top</a></p>
+    </div>
+
+    <footer id="footer" class="page-footer">
+      <div class="container">
+        <p><a href="#theTop"><i class="fa fa-arrow-up" aria-hidden="true"></i></a>  <a href="#theTop">Back to top</a></p>
+      </div>
     </footer>
 
 
