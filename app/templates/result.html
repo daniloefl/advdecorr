@@ -20,14 +20,20 @@
         <p class="lead justify">
         </p>
 
-        <p class="lead justify">
-          <table border=0>
-            <tr><th>Sample number</th><th>p-value</th></tr>
-            {% for i,value in result.items() %}
-            <tr><th>{{ i }}</th><td>{{ value.pvalue }}</td></tr>
-            {% endfor %}
-          </table>
-        </p>
+        <div class="row">
+          <div class="col-md-2">Sample number</div>
+          <div class="col-md-2">Variable A</div>
+          <div class="col-md-2">Variable B</div>
+          <div class="col-md-2">p-value</div>
+        </div>
+        {% for i,value in result.items() %}
+        <div class="row">
+          <div class="col-md-2">{{ i }}</div>
+          <div class="col-md-2">{{ value.A }}</div>
+          <div class="col-md-2">{{ value.B }}</div>
+          <div class="col-md-2">{{ value.pvalue }}</div>
+        </div>
+        {% endfor %}
 
       </div>
       <div class="col-md-2">

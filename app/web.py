@@ -24,14 +24,15 @@ def index():
 
 @app.route('/result', methods = ['POST'])
 def result():
-  data = request.form['data']
+  A = request.form.getlist('A[]')
+  B = request.form.getlist('B[]')
+  assert len(A) == len(B)
+  N = len(A)
   result = {}
-  i = 0
-  for line in data.split('\n'):
-    content = line.split()
+  for i in range(0, N):
     result[i] = {'pvalue' : 0}
-    for k in range(0, len(content)):
-      result[i]['input_%d' %k] = content[k]
+    result[i]['A'] = A[i]
+    result[i]['B'] = A[i]
   return render_template('result.html', result = result)
 
 if __name__ == '__main__':
