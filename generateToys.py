@@ -29,7 +29,7 @@ def make_sample(syst, N):
   data = copy.deepcopy(data_o)
   theta = 0
   if syst > 0.5:
-    theta = np.pi/4.
+    theta = 10*np.pi/180.
   data[:,0] = np.cos(theta)*data_o[:,0] - np.sin(theta)*data[:,1] 
   data[:,1] = np.sin(theta)*data_o[:,0] + np.cos(theta)*data[:,1] 
   return data, data_t, names

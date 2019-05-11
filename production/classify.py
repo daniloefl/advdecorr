@@ -27,7 +27,7 @@ class Network():
   '''
   Initialise the network.
   '''
-  def __init__(self, filename = "ganna_discriminator_30000"):
+  def __init__(self, filename = "disc"):
     self.filename = filename
     self.disc = None
     self.load(self.filename)
