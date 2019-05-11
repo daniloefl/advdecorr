@@ -20,6 +20,16 @@ python classify.py
 
 By default it runs in port 5001 in the local machine.
 
+This can be transformed in a docker image with:
+
+```
+docker build -t advdecorr-restful .
+docker run -d -p 5001:5001 advdecorr-restful
+```
+
+Now connecting to port 5001 outside of the container would work, but if the argument `-p 5001:5001` is omitted, this would not be possible in the host,
+but it would be possible from other containers, which could be beneficial for isolation between the RESTful server and the Web application.
+
 The code in `app/` implements the client-side web application, which communicates with the server-side to submit information and obtain new results.
 It can be run as a Flask application with:
 
@@ -29,4 +39,11 @@ python web.py
 
 It runs in port 5000 by default. Open the browser and navigate to `localhost:5000` and try to enter new data. After submitting, the client
 communicates with the server and collects the p-values back, which are then shown in the resulting form.
+
+The web application can be transformed in a docker image with:
+
+```
+docker build -t advdecorr-app .
+docker run -d -p 5000:5000 advdecorr-app
+```
 
