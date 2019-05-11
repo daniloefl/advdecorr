@@ -47,3 +47,10 @@ docker build -t advdecorr-app .
 docker run -d -p 5000:5000 advdecorr-app
 ```
 
+The two docker containers can be built and ran using docker-compose, so that they are able to communicate with each other.
+It can be done as follows, from the root directory of the project:
+
+```
+docker-compose up --build
+```
+

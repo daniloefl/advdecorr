@@ -26,6 +26,10 @@ def index():
 
 @app.route('/result', methods = ['POST'])
 def result():
+  # configuration of the server name and port
+  # set up as in the docker-compose configuration
+  serverName = 'restful'
+  serverPort = 5001
   A = request.form.getlist('A[]')
   B = request.form.getlist('B[]')
   assert len(A) == len(B)
@@ -33,7 +37,7 @@ def result():
   result = {}
   for i in range(0, N):
     result[i] = {}
-    result[i]['pvalue'] = requests.put('http://127.0.0.1:5001/classify', data={'i': i, 'A': A[i], 'B': B[i]}).json()[str(i)]
+    result[i]['pvalue'] = requests.put('http://%s:%d/classify' % (serverName, serverPort), data={'i': i, 'A': A[i], 'B': B[i]}).json()[str(i)]
     result[i]['A'] = A[i]
     result[i]['B'] = B[i]
   return render_template('result.html', result = result)
