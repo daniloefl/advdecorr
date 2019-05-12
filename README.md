@@ -3,7 +3,12 @@
 This project is a test bench for classification studies, where a classifier is expected to separate signal against a background without discriminating
 on a variable S, referred to as `systematic uncertainty` throughout the code.
 
-The training of the classifier can be done using the code in `keras_gan.py`, where a GAN topology is used to penalize the classifier (taken as the GAN's generator)
+The training code is in the directory `training`, while a production web app and a server-side RESTful code are in the directories `app` and `restful`.
+`docker-compose` can be used to create a docker image for both the web app and the server-side RESTful code using the `docker-compose.yml` configuration.
+See more information about this in the next section.
+
+Looking in the `training` directory, The training of the classifier can be done using the code in `keras_gan.py`,
+where a GAN topology is used to penalize the classifier (taken as the GAN's generator)
 if it is possible to learn the variable S. Another topology is implemented in `keras_aae.py`, where an adversarial auto-encoder is trained to censor
 a latent representation, before using such latent representation for classification.
 
