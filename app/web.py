@@ -1,4 +1,4 @@
-# app/web.py
+#!/usr/bin/env python3
 
 from flask import Flask, render_template, request
 from flask_bootstrap import Bootstrap

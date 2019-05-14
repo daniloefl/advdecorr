@@ -4,16 +4,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import sys
-import os
-import gc
-
-from flask import Flask
-from flask_restful import Resource, Api
-from flask_restful import reqparse
-
-app = Flask(__name__)
-api = Api(app)
+import connexion
 
 # numerical library
 import numpy as np
@@ -52,29 +43,23 @@ class Network():
       y = self.disc.predict(x)
     return y
 
+NN = Network()
+
 '''
-  Class that implements interface with client.
+  Interface with client.
 '''
-class Classify(Resource):
-
-  '''
-  PUT method handling.
-  '''
-  def put(self):
-
-    parser = reqparse.RequestParser()
-    parser.add_argument('i', type=int, help='Item index')
-    parser.add_argument('A', type=float, help='Value of A')
-    parser.add_argument('B', type=float, help='Value of B')
-    samples = parser.parse_args()
-
+def post_classify(sample):
     out = {}
-    x = np.array([[samples['A'], samples['B']]])
-    out[samples['i']] = float(NN.predict(x))
+    x = np.array([[float(sample['A']), float(sample['B'])]])
+    out['i'] = sample['i']
+    out['A'] = sample['A']
+    out['B'] = sample['B']
+    out['pvalue'] = str(float(NN.predict(x)))
     return out
 
-NN = Network()
-api.add_resource(Classify, '/classify')
+app = connexion.App(__name__, specification_dir = './')
+app.add_api('api_configuration.yaml')
+application = app.app
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001)
