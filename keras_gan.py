@@ -630,7 +630,7 @@ def main():
                     default='result',
                     help='Directory where results are saved. (default: "result")')
   parser.add_argument('--input-file', dest='input', action='store',
-                    default='input_toys.h5',
+                    default='input.h5',
                     help='Name of the file from where to read the input. (default: "input_toys.h5")')
   parser.add_argument('--load-trained', dest='trained', action='store',
                     default='30000',
