@@ -631,7 +631,7 @@ def main():
                     help='Directory where results are saved. (default: "result")')
   parser.add_argument('--input-file', dest='input', action='store',
                     default='input.h5',
-                    help='Name of the file from where to read the input. (default: "input_toys.h5")')
+                    help='Name of the file from where to read the input. (default: "input.h5")')
   parser.add_argument('--load-trained', dest='trained', action='store',
                     default='30000',
                     help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "30000")')
