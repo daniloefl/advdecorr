@@ -2,7 +2,7 @@ dist: bionic
 language: python
 python:
   - "3.7"
-install: pip3 install docker requests docker-compose
+install: pip3 install requests==2.20.0 docker-compose
 script:
  - docker-compose up --build -d
  - test/test_docker.py
