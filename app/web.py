@@ -37,7 +37,7 @@ def result():
   result = {}
   for i in range(0, N):
     result[i] = {}
-    result[i]['pvalue'] = requests.put('http://%s:%d/classify' % (serverName, serverPort), data={'i': i, 'A': A[i], 'B': B[i]}).json()[str(i)]
+    result[i]['pvalue'] = requests.post('http://%s:%d/classify' % (serverName, serverPort), json = {'i': i, 'A': A[i], 'B': B[i]}).json()['pvalue']
     result[i]['A'] = A[i]
     result[i]['B'] = B[i]
   return render_template('result.html', result = result)

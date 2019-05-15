@@ -20,21 +20,26 @@
         <p class="lead justify">
         </p>
 
-        <div class="row">
-          <div class="col-md-2">Sample number</div>
-          <div class="col-md-2">Variable A</div>
-          <div class="col-md-2">Variable B</div>
-          <div class="col-md-2">p-value</div>
-        </div>
-        {% for i,value in result.items() %}
-        <div class="row">
-          <div class="col-md-2">{{ i }}</div>
-          <div class="col-md-2">{{ value.A }}</div>
-          <div class="col-md-2">{{ value.B }}</div>
-          <div class="col-md-2">{{ value.pvalue }}</div>
-        </div>
-        {% endfor %}
-
+        <table class="table table-striped">
+          <thead>
+          <tr class="info">
+            <th>Sample number</th>
+            <th>Variable A</th>
+            <th>Variable B</th>
+            <th>p-value</th>
+          </tr>
+          </thead>
+          <tbody>
+          {% for i,value in result.items() %}
+          <tr>
+            <td>{{ i }}</td>
+            <td>{{ value.A }}</td>
+            <td>{{ value.B }}</td>
+            <td>{{ value.pvalue }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
       </div>
       <div class="col-md-2">
       </div>
