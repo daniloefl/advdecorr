@@ -1,5 +1,7 @@
 # advdecorr
 
+[![Build Status](https://travis-ci.org/daniloefl/advdecorr.svg?branch=master)](https://travis-ci.org/daniloefl/advdecorr)
+
 This project is a test bench for classification studies, where a classifier is expected to separate signal against a background without discriminating
 on a variable S, referred to as `systematic uncertainty` throughout the code.
 
