@@ -1,12 +1,8 @@
+dist: xenial
 language: python
-before_install:
- - sudo apt-get update
- - sudo apt-get install -y docker docker-compose python
-install:
- - docker-compose up --build -d
+python:
+  - "3.7"
+install: pip3 install docker docker-compose
 script:
- - curl http://localhost:5000/ -X GET
- - curl http://localhost:5000/home -X GET
- - curl http://localhost:5000/result -X POST -F 'A[]=3.4' -F 'B[]=5' -F 'A[]=5' -F 'B[]=10'
- - curl http://localhost:5001/classify -X POST -d '{"i": 1, "A": "3.4", "B": "-2"}' -H 'Content-Type: application/json'
- - ./test/test_docker.py
+ - docker-compose up --build -d
+ - test/test_docker.py
