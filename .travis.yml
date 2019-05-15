@@ -5,4 +5,7 @@ python:
 install: pip3 install requests==2.20.0 docker-compose
 script:
  - docker-compose up --build -d
+ - docker-compose ps
+ - netstat -nta
+ - sleep 5
  - test/test_docker.py
