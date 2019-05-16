@@ -25,7 +25,7 @@ Generate a toy sample for signal and background.
 '''
 def make_sample(syst, N):
   global names
-  data_o, data_t = sklearn.datasets.make_moons(n_samples = N, noise = 0.8)
+  data_o, data_t = sklearn.datasets.make_moons(n_samples = N, noise = 0.3)
   data = copy.deepcopy(data_o)
   theta = 0
   if syst > 0.5:
