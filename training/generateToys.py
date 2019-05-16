@@ -25,7 +25,7 @@ Generate a toy sample for signal and background.
 '''
 def make_sample(syst, N):
   global names
-  data_o, data_t = sklearn.datasets.make_moons(n_samples = N, noise = 0.1)
+  data_o, data_t = sklearn.datasets.make_moons(n_samples = N, noise = 0.8)
   data = copy.deepcopy(data_o)
   theta = 0
   if syst > 0.5:
@@ -45,17 +45,19 @@ def prepare_input(filename = 'input_ee.h5'):
   file = pd.HDFStore(filename, 'w')
   x = {}
   NumberOfVars = len(names)
-  all_data = np.zeros(shape = (0, 3+NumberOfVars))
+  all_data = np.zeros(shape = (0, 4+NumberOfVars))
   for t in ['train', 'test']:
     for s in [0, 1]:
       data, data_t, names = make_sample(syst = s, N = N)
+      data_tr = np.ones(N)
       data_w = np.ones(N)
       data_s = s*np.ones(N)
-      add_all_data = np.concatenate( (data_t[:,np.newaxis], data_s[:, np.newaxis], data_w[:,np.newaxis], data), axis=1)
+      add_all_data = np.concatenate( (data_t[:,np.newaxis], data_s[:, np.newaxis], data_w[:,np.newaxis], data_tr[:, np.newaxis], data), axis=1)
       all_data = np.concatenate((all_data, add_all_data), axis = 0)
     print('Checking nans in %s' % t)
     check_nans(all_data)
-  df = pd.DataFrame(all_data, columns = ['sample', 'syst', 'weight']+names)
+  df = pd.DataFrame(all_data, columns = ['sample', 'syst', 'weight', 'train']+names)
+  df['train'] = (df.index < 2*N)
   file.put('df', df, format = 'table', data_columns = True)
 
   for t in ['train', 'test']:
@@ -130,9 +132,9 @@ def plotRatio(filename = 'input_ee.h5', num = "Variation", den = "Nominal", var 
   ns_err.append(np.sqrt(c))
   
   ax1.step(bins[:-1], ns[0], alpha = 0.8, label = num + ' bkg.', color = 'r')
-  ax1.step(bins[:-1], ns[1], alpha = 0.8, label = den + ' bkg.', color = 'pink')
+  ax1.step(bins[:-1], ns[1], alpha = 0.8, label = den + ' bkg.', color = 'magenta')
   ax1.errorbar(bins[:-2]+s, ns[0][1:], ns_err[0][1:], alpha = 0.8, color = 'r', fmt = 'o')
-  ax1.errorbar(bins[:-2]+s, ns[1][1:], ns_err[1][1:], alpha = 0.8, color = 'pink', fmt = 'o')
+  ax1.errorbar(bins[:-2]+s, ns[1][1:], ns_err[1][1:], alpha = 0.8, color = 'magenta', fmt = 'o')
 
   cutNum = (df['syst'] == 1) & (df['sample'] == 1)
   cutDen = (df['syst'] == 0) & (df['sample'] == 1)
