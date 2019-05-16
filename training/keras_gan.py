@@ -67,7 +67,7 @@ class GAN(object):
   4) Go back to 2 and repeat this n_iteration times.
   '''
 
-  def __init__(self, n_iteration = 5050, n_pretrain = 500, n_adv = 10,
+  def __init__(self, n_iteration = 1050, n_pretrain = 500, n_adv = 10,
                n_batch = 256,
                lambda_decorr = 1.0,
                n_eval = 50,
@@ -99,8 +99,8 @@ class GAN(object):
   def create_adv(self):
     self.advall_input = Input(shape = (self.n_dimensions,), name = 'advall_input')
     self.adv_input = Input(shape = (1,), name = 'adv_input')
-    #xc = K.layers.Concatenate()([self.advall_input, self.adv_input])
-    xc = self.adv_input
+    xc = K.layers.Concatenate()([self.advall_input, self.adv_input])
+    #xc = self.adv_input
     xc = Dense(200, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = Dense(100, activation = None)(xc)
@@ -114,8 +114,8 @@ class GAN(object):
     xc = Dense(10, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = Dense(1, activation = 'sigmoid')(xc)
-    #self.adv = Model([self.advall_input, self.adv_input], xc, name = "adv")
-    self.adv = Model(self.adv_input, xc, name = "adv")
+    self.adv = Model([self.advall_input, self.adv_input], xc, name = "adv")
+    #self.adv = Model(self.adv_input, xc, name = "adv")
     self.adv.trainable = True
     self.adv.compile(loss = K.losses.binary_crossentropy,
                         optimizer = Adam(lr = 1e-4), metrics = [])
@@ -165,8 +165,8 @@ class GAN(object):
     self.disc.trainable = False
     self.adv.trainable = True
     self.disc_fixed_adv = Model([self.any_input],
-                                #[self.adv([self.any_input, self.disc(self.any_input)])],
-                                [self.adv(self.disc(self.any_input))],
+                                [self.adv([self.any_input, self.disc(self.any_input)])],
+                                #[self.adv(self.disc(self.any_input))],
                                 name = "disc_fixed_adv")
     self.disc_fixed_adv.compile(loss = [K.losses.binary_crossentropy],
                                 loss_weights = [self.lambda_decorr],
@@ -177,8 +177,8 @@ class GAN(object):
     self.adv.trainable = False
     self.disc_adv_fixed = Model([self.nominal_input, self.any_input],
                                 [self.disc(self.nominal_input),
-                                 #self.adv([self.any_input, self.disc(self.any_input)])],
-                                 self.adv(self.disc(self.any_input))],
+                                 self.adv([self.any_input, self.disc(self.any_input)])],
+                                 #self.adv(self.disc(self.any_input))],
                                 name = "disc_adv_fixed")
     self.disc_adv_fixed.compile(loss = [K.losses.binary_crossentropy,
                                         K.losses.binary_crossentropy],
@@ -373,12 +373,12 @@ class GAN(object):
     import seaborn as sns
     # use get_continuour_batch to read directly from the file
     out_syst_nominal = []
-    #for x,w,y,s in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.adv.predict([x, self.disc.predict(x)]))
-    for x,w,y,s in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.adv.predict(self.disc.predict(x)))
+    for x,w,y,s in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.adv.predict([x, self.disc.predict(x)]))
+    #for x,w,y,s in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.adv.predict(self.disc.predict(x)))
     out_syst_nominal = np.array(out_syst_nominal)
     out_syst_var = []
-    #for x,w,y,s in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.adv.predict([x, self.disc.predict(x)]))
-    for x,w,y,s in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.adv.predict(self.disc.predict(x)))
+    for x,w,y,s in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.adv.predict([x, self.disc.predict(x)]))
+    #for x,w,y,s in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.adv.predict(self.disc.predict(x)))
     out_syst_var = np.array(out_syst_var)
     bins = np.linspace(np.amin(out_syst_nominal), np.amax(out_syst_nominal), 10)
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -479,19 +479,22 @@ class GAN(object):
       if not self.no_adv:
         #print("Training with adv.", self.no_adv, not self.no_adv, self.lambda_decorr)
         # step 0 - pretraining
-        if epoch < self.n_pretrain*0.5:
+        if epoch < self.n_pretrain:
           x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
           self.disc.trainable = True
           self.disc.train_on_batch([x_batch_nom],
                                    [y_batch_nom],
                                    sample_weight = [x_batch_nom_w])
-        if epoch > 0.5*self.n_pretrain and epoch < self.n_pretrain:
-          x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any)
-          self.disc.trainable = False
-          self.adv.trainable = True
-          self.disc_fixed_adv.train_on_batch([x_batch_any],
-                                             [s_batch_any],
-                                             sample_weight = [x_batch_any_w])
+          n_adv = self.n_adv
+          for k in range(0, n_adv):
+            x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
+            x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any)
+
+            self.disc.trainable = False
+            self.adv.trainable = True
+            self.disc_fixed_adv.train_on_batch([x_batch_any],
+                                               [s_batch_any],
+                                               sample_weight = [x_batch_any_w])
 
         if epoch >= self.n_pretrain:
           # step adv.
@@ -525,14 +528,14 @@ class GAN(object):
         x,w,y,s = next(iter_test_nom)
         disc_metric += self.disc.evaluate(x.values, y.values, sample_weight = w.values, verbose = 0)
         x,w,y,s = next(iter_test_any)
-        #adv_metric = self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
-        adv_metric = self.adv.evaluate(self.disc.predict(x.values, verbose = 0), s.values, sample_weight = w.values, verbose = 0)
+        adv_metric = self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
+        #adv_metric = self.adv.evaluate(self.disc.predict(x.values, verbose = 0), s.values, sample_weight = w.values, verbose = 0)
         x,w,y,s = next(iter_test_nom)
-        #adv_metric_nom += self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
-        adv_metric_nom += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), s.values, sample_weight = w.values, verbose = 0)
+        adv_metric_nom += self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
+        #adv_metric_nom += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), s.values, sample_weight = w.values, verbose = 0)
         x,w,y,s = next(iter_test_sys)
-        #adv_metric_syst += self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
-        adv_metric_syst += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), s.values, sample_weight = w.values, verbose = 0)
+        adv_metric_syst += self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
+        #adv_metric_syst += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), s.values, sample_weight = w.values, verbose = 0)
         if adv_metric == 0: adv_metric = 1e-20
 
         self.adv_loss_train = np.append(self.adv_loss_train, [adv_metric])
@@ -647,14 +650,17 @@ def main():
                     default='input.h5',
                     help='Name of the file from where to read the input. (default: "input.h5")')
   parser.add_argument('--load-trained', dest='trained', action='store',
-                    default='5000',
-                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "5000")')
+                    default='1000',
+                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "1000")')
   parser.add_argument('--prefix', dest='prefix', action='store',
                     default='gan',
                     help='Prefix to be added to filenames when producing plots. (default: "gan")')
   parser.add_argument('--lambda', dest='l', action='store',
                     default=1.0,
                     help='Value of lambda_decorr. (default: 1.0)')
+  parser.add_argument('--no-adv', dest='no_adv', action='store_true',
+                    default=False,
+                    help='De-activate adversarial training?')
   parser.add_argument('--mode', metavar='MODE', choices=['train', 'plot_loss', 'plot_input', 'plot_output', 'plot_disc', 'plot_adv'],
                      default = 'train',
                      help='The mode is either "train" (a neural network), "plot_loss" (plot loss from training), "plot_input" (plot input variables and correlations), "plot_output" (plot output variables), "plot_disc" (plot discriminator output), "plot_adv" (plot adv. output). (default: train)')
@@ -667,11 +673,7 @@ def main():
   if not os.path.exists(args.network_dir):
     os.makedirs(args.network_dir)
 
-  #if args.no_adv == "True":
-  #  args.no_adv = True
-  #else:
-  #  args.no_adv = False
-  network = GAN(no_adv = False, lambda_decorr = float(args.l))
+  network = GAN(no_adv = args.no_adv, lambda_decorr = float(args.l))
 
   # read it from disk
   network.read_input_from_files(filename = args.input)
@@ -680,6 +682,7 @@ def main():
   var.remove('syst')
   var.remove('sample')
   var.remove('weight')
+  var.remove('train')
 
   # when training make some debug plots and prepare the network
   if args.mode == 'train':
