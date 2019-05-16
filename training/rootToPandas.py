@@ -57,18 +57,16 @@ def transformROOTToPandas(treeNameList = ["Nominal",
   Nrows = 0
   for treeName in treeNameList:
     t[treeName] = {}
-    ptDrop = False
     for k in f:
       nn = treeName
       if "slope" in nn:
         nn = "Nominal"
-        ptDrop = True
       t[treeName][k] = f[k].Get(nn)
 
     # sample specifies if it is signal or background
     Nrows += (t[treeName]["bkg"].GetEntries()+t[treeName]["sig"].GetEntries())
 
-  df = pd.DataFrame(np.zeros((Nrows, len(listBranches)+3), dtype = np.float32), columns = ['sample', 'syst', 'weight']+listBranches)
+  df = pd.DataFrame(np.zeros((Nrows, len(listBranches)+4), dtype = np.float32), columns = ['sample', 'syst', 'weight', 'train']+listBranches)
   idx = 0
   for treeName in treeNameList:
     for sample in range(0, 2): # signal and bkg
@@ -83,7 +81,7 @@ def transformROOTToPandas(treeNameList = ["Nominal",
 
         if t[treeName][sampleName].NJetsbtagged < 2: continue # added cut to follow paper
 
-        if ptDrop and sample == 0 and treeName == 'slope':
+        if sample == 0 and treeName == 'slope':
           prob = 1.0
           if t[treeName][sampleName].diHiggsM < 300:
             prob = 0.80
@@ -100,23 +98,22 @@ def transformROOTToPandas(treeNameList = ["Nominal",
         df.loc[idx, 'sample'] = sample # 0 for bkg, 1 for signal
         df.loc[idx, 'syst'] = float(treeName != 'Nominal') # 0 for nominal, 1 for syst
         df.loc[idx, 'weight'] = 1.0 #t[treeName][sampleName].EventWeightNoXSec
+        is_it_train = (k > t[treeName][sampleName].GetEntries()/2)
+        df.loc[idx, 'train'] = is_it_train
         for br in range(0, len(listBranches)):
           df.loc[idx, listBranches[br]] = getattr(t[treeName][sampleName], listBranches[br])
         idx += 1
     if idx < Nrows:
       df = df[0:idx]
   hdf.put('df', df, format = 'table', data_columns = True)
-  p = np.random.permutation(Nrows)
-  ptrain = p[:int(Nrows/2)]
-  ptest = p[int(Nrows/2):]
-  train_bkg = pd.DataFrame( ((df['sample'] == 0) & (df.index.isin(ptrain))))
-  train_sig = pd.DataFrame( ((df['sample'] == 1) & (df.index.isin(ptrain))))
-  train_syst = pd.DataFrame( ((df['syst'] == 1) & (df.index.isin(ptrain))))
-  train_nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index.isin(ptrain))))
-  test_bkg = pd.DataFrame( ((df['sample'] == 0) & (df.index.isin(ptest))))
-  test_sig = pd.DataFrame( ((df['sample'] == 1) & (df.index.isin(ptest))))
-  test_syst = pd.DataFrame( ((df['syst'] == 1) & (df.index.isin(ptest))))
-  test_nominal = pd.DataFrame( ((df['syst'] == 0) & (df.index.isin(ptest))))
+  train_bkg = pd.DataFrame( ((df['sample'] == 0) & (df['train'] == 1)))
+  train_sig = pd.DataFrame( ((df['sample'] == 1) & (df['train'] == 1)))
+  train_syst = pd.DataFrame( ((df['syst'] == 1) & (df['train'] == 1)))
+  train_nominal = pd.DataFrame( ((df['syst'] == 0) & (df['train'] == 1)))
+  test_bkg = pd.DataFrame( ((df['sample'] == 0) & (df['train'] == 0)))
+  test_sig = pd.DataFrame( ((df['sample'] == 1) & (df['train'] == 0)))
+  test_syst = pd.DataFrame( ((df['syst'] == 1) & (df['train'] == 0)))
+  test_nominal = pd.DataFrame( ((df['syst'] == 0) & (df['train'] == 0)))
   hdf.put('train_bkg', train_bkg, format = 'table')
   hdf.put('train_sig', train_sig, format = 'table')
   hdf.put('train_syst', train_syst, format = 'table')
@@ -147,8 +144,11 @@ def plotRatio(num = "Variation", den = "Nominal", var = "diHiggsPt"):
   #fig, (ax1, ax2) = plt.subplots(nrows=2)
   ns = []
   ns_err = []
-  cutNum = (df['syst'] == 1) & (df['sample'] == 0)
-  cutDen = (df['syst'] == 0) & (df['sample'] == 0)
+  c = pd.HDFStore('input.h5', 'r')
+  #cutNum = (df['syst'] == 1) & (df['sample'] == 1) & (df['train'] == 0)
+  #cutDen = (df['syst'] == 0) & (df['sample'] == 1) & (df['train'] == 0)
+  cutNum = c['test_syst'].iloc[:,0] & c['test_bkg'].iloc[:,0]
+  cutDen = c['test_nominal'].iloc[:,0] & c['test_bkg'].iloc[:,0]
   c, bins = np.histogram(df.loc[cutDen, var], normed = False, bins = 20, weights = df['weight'][cutDen])
   for k in range(len(bins-1)):
     if np.sum(c[0:k])/np.sum(c) > 0.99:
@@ -200,7 +200,7 @@ def plotRatio(num = "Variation", den = "Nominal", var = "diHiggsPt"):
 
 # only needs to be called once: to make the data_Nominal.h5 file
 # using the h5 file is faster than using ROOT files
-transformROOTToPandas()
+#transformROOTToPandas()
 
 for var in ["diHiggsM", 'diHiggsPt', "diJetM", "diTauMMCM"]:
   plotRatio(var = var)
