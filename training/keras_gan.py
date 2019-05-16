@@ -67,7 +67,7 @@ class GAN(object):
   4) Go back to 2 and repeat this n_iteration times.
   '''
 
-  def __init__(self, n_iteration = 30050, n_pretrain = 500, n_adv = 5,
+  def __init__(self, n_iteration = 5050, n_pretrain = 500, n_adv = 10,
                n_batch = 256,
                lambda_decorr = 1.0,
                n_eval = 50,
@@ -99,7 +99,8 @@ class GAN(object):
   def create_adv(self):
     self.advall_input = Input(shape = (self.n_dimensions,), name = 'advall_input')
     self.adv_input = Input(shape = (1,), name = 'adv_input')
-    xc = K.layers.Concatenate()([self.advall_input, self.adv_input])
+    #xc = K.layers.Concatenate()([self.advall_input, self.adv_input])
+    xc = self.adv_input
     xc = Dense(200, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = Dense(100, activation = None)(xc)
@@ -113,7 +114,8 @@ class GAN(object):
     xc = Dense(10, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = Dense(1, activation = 'sigmoid')(xc)
-    self.adv = Model([self.advall_input, self.adv_input], xc, name = "adv")
+    #self.adv = Model([self.advall_input, self.adv_input], xc, name = "adv")
+    self.adv = Model(self.adv_input, xc, name = "adv")
     self.adv.trainable = True
     self.adv.compile(loss = K.losses.binary_crossentropy,
                         optimizer = Adam(lr = 1e-4), metrics = [])
@@ -161,8 +163,10 @@ class GAN(object):
     self.syst_input = Input(shape = (self.n_dimensions,), name = 'syst_input')
 
     self.disc.trainable = False
+    self.adv.trainable = True
     self.disc_fixed_adv = Model([self.any_input],
-                                [self.adv([self.any_input, self.disc(self.any_input)])],
+                                #[self.adv([self.any_input, self.disc(self.any_input)])],
+                                [self.adv(self.disc(self.any_input))],
                                 name = "disc_fixed_adv")
     self.disc_fixed_adv.compile(loss = [K.losses.binary_crossentropy],
                                 loss_weights = [self.lambda_decorr],
@@ -173,7 +177,8 @@ class GAN(object):
     self.adv.trainable = False
     self.disc_adv_fixed = Model([self.nominal_input, self.any_input],
                                 [self.disc(self.nominal_input),
-                                 self.adv([self.any_input, self.disc(self.any_input)])],
+                                 #self.adv([self.any_input, self.disc(self.any_input)])],
+                                 self.adv(self.disc(self.any_input))],
                                 name = "disc_adv_fixed")
     self.disc_adv_fixed.compile(loss = [K.losses.binary_crossentropy,
                                         K.losses.binary_crossentropy],
@@ -202,12 +207,12 @@ class GAN(object):
   '''
   def read_input_from_files(self, filename = 'input_preprocessed.h5'):
     self.file = pd.HDFStore(filename, 'r')
-    self.n_dimensions = self.file['df'].shape[1]-3
+    self.n_dimensions = self.file['df'].shape[1]-4
     self.col_signal = self.file['df'].columns.get_loc('sample')
     self.col_syst = self.file['df'].columns.get_loc('syst')
     self.col_weight = self.file['df'].columns.get_loc('weight')
-    self.sigma = self.file['df'].std(axis = 0).drop(['sample', 'syst', 'weight'], axis = 0)
-    self.mean = self.file['df'].mean(axis = 0).drop(['sample', 'syst', 'weight'], axis = 0)
+    self.sigma = self.file['df'].std(axis = 0).drop(['sample', 'syst', 'weight', 'train'], axis = 0)
+    self.mean = self.file['df'].mean(axis = 0).drop(['sample', 'syst', 'weight', 'train'], axis = 0)
     self.sumWSignal = self.file['df'].loc[self.file['df']['sample'] == 1, 'weight'].sum()
     self.sumWBkg = self.file['df'].loc[self.file['df']['sample'] == 0, 'weight'].sum()
     self.sumW = self.sumWSignal + self.sumWBkg
@@ -217,7 +222,7 @@ class GAN(object):
     import seaborn as sns
 
     nominal = self.file['test_nominal'].iloc[:, 0]
-    x = self.file['df'][nominal].drop(['sample', 'syst', 'weight'], axis = 1)
+    x = self.file['df'][nominal].drop(['sample', 'syst', 'weight', 'train'], axis = 1)
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111)
     sns.heatmap(np.corrcoef(x, rowvar = 0),
@@ -368,10 +373,12 @@ class GAN(object):
     import seaborn as sns
     # use get_continuour_batch to read directly from the file
     out_syst_nominal = []
-    for x,w,y,s in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.adv.predict([x, self.disc.predict(x)]))
+    #for x,w,y,s in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.adv.predict([x, self.disc.predict(x)]))
+    for x,w,y,s in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.adv.predict(self.disc.predict(x)))
     out_syst_nominal = np.array(out_syst_nominal)
     out_syst_var = []
-    for x,w,y,s in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.adv.predict([x, self.disc.predict(x)]))
+    #for x,w,y,s in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.adv.predict([x, self.disc.predict(x)]))
+    for x,w,y,s in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.adv.predict(self.disc.predict(x)))
     out_syst_var = np.array(out_syst_var)
     bins = np.linspace(np.amin(out_syst_nominal), np.amax(out_syst_nominal), 10)
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -409,7 +416,7 @@ class GAN(object):
         r = rows[i*self.n_batch : (i+1)*self.n_batch]
         r = sorted(r)
         df = self.file.select('df', where = 'index = r')
-        x_batch = (df.drop(['weight', 'sample', 'syst'], axis = 1) - self.mean)/self.sigma
+        x_batch = (df.drop(['weight', 'sample', 'syst', 'train'], axis = 1) - self.mean)/self.sigma
         y_batch = df.loc[:, 'sample']
         #wmask = ((y_batch == 1)*self.sumWBkg + (y_batch == 0)*self.sumWSig)/self.sumW
         x_batch_w = df.loc[:, 'weight'] #*wmask
@@ -424,7 +431,7 @@ class GAN(object):
         r = rows[i*self.n_batch : (i+1)*self.n_batch]
         r = sorted(r)
         df = self.file.select('df', where = 'index = r')
-        x_batch = (df.drop(['weight', 'sample', 'syst'], axis = 1) - self.mean)/self.sigma
+        x_batch = (df.drop(['weight', 'sample', 'syst', 'train'], axis = 1) - self.mean)/self.sigma
         y_batch = df.loc[:, 'sample']
         #wmask = ((y_batch == 1)*self.sumWBkg + (y_batch == 0)*self.sumWSig)/self.sumW
         x_batch_w = df.loc[:, 'weight'] #*wmask
@@ -451,6 +458,7 @@ class GAN(object):
 
     for epoch in range(self.n_iteration):
       if self.no_adv:
+        #print("Training with no adv.", self.no_adv, not self.no_adv, self.lambda_decorr)
         x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
         self.disc.trainable = True
         self.disc.train_on_batch([x_batch_nom],
@@ -469,6 +477,7 @@ class GAN(object):
                                              sample_weight = [x_batch_any_w])
 
       if not self.no_adv:
+        #print("Training with adv.", self.no_adv, not self.no_adv, self.lambda_decorr)
         # step 0 - pretraining
         if epoch < self.n_pretrain*0.5:
           x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
@@ -486,6 +495,8 @@ class GAN(object):
 
         if epoch >= self.n_pretrain:
           # step adv.
+          self.disc.trainable = False
+          self.adv.trainable = True
           n_adv = self.n_adv
           for k in range(0, n_adv):
             x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
@@ -514,11 +525,14 @@ class GAN(object):
         x,w,y,s = next(iter_test_nom)
         disc_metric += self.disc.evaluate(x.values, y.values, sample_weight = w.values, verbose = 0)
         x,w,y,s = next(iter_test_any)
-        adv_metric = self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
+        #adv_metric = self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
+        adv_metric = self.adv.evaluate(self.disc.predict(x.values, verbose = 0), s.values, sample_weight = w.values, verbose = 0)
         x,w,y,s = next(iter_test_nom)
-        adv_metric_nom += self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
+        #adv_metric_nom += self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
+        adv_metric_nom += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), s.values, sample_weight = w.values, verbose = 0)
         x,w,y,s = next(iter_test_sys)
-        adv_metric_syst += self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
+        #adv_metric_syst += self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
+        adv_metric_syst += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), s.values, sample_weight = w.values, verbose = 0)
         if adv_metric == 0: adv_metric = 1e-20
 
         self.adv_loss_train = np.append(self.adv_loss_train, [adv_metric])
@@ -532,7 +546,7 @@ class GAN(object):
         floss.create_dataset('disc_loss', data = self.disc_loss_train)
         floss.close()
 
-        print("Batch %5d: L_{disc. only} = %10.7f; - lambda_{decorr} L_{adv.} = %10.7f ; L_{adv.,nom} = %10.7f ; L_{adv.,sys} = %10.7f" % (epoch, disc_metric, -self.lambda_decorr*adv_metric, adv_metric_nom, adv_metric_syst))
+        print("Batch %5d: L_{disc. only} = %10.7f; L_{adv.} = %10.7f ; L_{adv.,nom} = %10.7f ; L_{adv.,sys} = %10.7f" % (epoch, disc_metric, adv_metric, adv_metric_nom, adv_metric_syst))
         self.save("%s/%s_discriminator_%d" % (network_dir, prefix, epoch), "%s/%s_adv_%d" % (network_dir, prefix, epoch))
       #gc.collect()
 
@@ -552,15 +566,15 @@ class GAN(object):
     fig, ax = plt.subplots(figsize=(10, 8))
     it = np.arange(0, self.n_iteration, self.n_eval)
     plt.plot(it, (self.disc_loss_train), linestyle = '-', color = 'r', label = r'$\mathcal{L}_{\mathrm{disc}}$')
-    plt.plot(it, (np.fabs(-self.lambda_decorr*self.adv_loss_train)), linestyle = '-', color = 'b', label = r' | $\lambda_{\mathrm{decorr}} \mathcal{L}_{\mathrm{adv}} |$')
-    plt.plot(it, (np.abs(self.disc_loss_train - self.lambda_decorr*np.abs(self.adv_loss_train))), linestyle = '-', color = 'k', label = r'$\mathcal{L}_{\mathrm{disc}} - \lambda_{\mathrm{decorr}} |\mathcal{L}_{\mathrm{adv}}$|')
+    plt.plot(it, (np.fabs(self.adv_loss_train)), linestyle = '-', color = 'b', label = r' | $ \mathcal{L}_{\mathrm{adv}} |$')
+    plt.plot(it, (np.fabs(self.disc_loss_train - self.lambda_decorr*np.abs(self.adv_loss_train))), linestyle = '-', color = 'k', label = r'$\mathcal{L}_{\mathrm{disc}} - \lambda_{\mathrm{decorr}} |\mathcal{L}_{\mathrm{adv}}$|')
     if self.n_pretrain > 0:
       plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
       #plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of adv bootstrap')
     if nnTaken > 0:
       plt.axvline(x = nnTaken, color = 'r', linestyle = '--', label = 'Configuration taken for further analysis')
     ax.set(xlabel='Batches', ylabel='Loss', title='Training evolution');
-    ax.set_ylim([1e-5, 1.0])
+    ax.set_ylim([1e-1, 1.0])
     ax.set_yscale('log')
     plt.legend(frameon = False)
     plt.savefig(filename)
@@ -633,14 +647,14 @@ def main():
                     default='input.h5',
                     help='Name of the file from where to read the input. (default: "input.h5")')
   parser.add_argument('--load-trained', dest='trained', action='store',
-                    default='30000',
-                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "30000")')
+                    default='5000',
+                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "5000")')
   parser.add_argument('--prefix', dest='prefix', action='store',
                     default='gan',
                     help='Prefix to be added to filenames when producing plots. (default: "gan")')
-  parser.add_argument('--no-adv', dest='no_adv', action='store',
-                    default=False,
-                    help='If True, train only the discriminator. (default: False)')
+  parser.add_argument('--lambda', dest='l', action='store',
+                    default=1.0,
+                    help='Value of lambda_decorr. (default: 1.0)')
   parser.add_argument('--mode', metavar='MODE', choices=['train', 'plot_loss', 'plot_input', 'plot_output', 'plot_disc', 'plot_adv'],
                      default = 'train',
                      help='The mode is either "train" (a neural network), "plot_loss" (plot loss from training), "plot_input" (plot input variables and correlations), "plot_output" (plot output variables), "plot_disc" (plot discriminator output), "plot_adv" (plot adv. output). (default: train)')
@@ -653,7 +667,11 @@ def main():
   if not os.path.exists(args.network_dir):
     os.makedirs(args.network_dir)
 
-  network = GAN(no_adv = args.no_adv)
+  #if args.no_adv == "True":
+  #  args.no_adv = True
+  #else:
+  #  args.no_adv = False
+  network = GAN(no_adv = False, lambda_decorr = float(args.l))
 
   # read it from disk
   network.read_input_from_files(filename = args.input)
