@@ -58,7 +58,7 @@ class AAE(object):
 
   def __init__(self,
                n_latent = 8,
-               n_iteration = 30050,
+               n_iteration = 5050,
                n_pretrain = 0,
                n_batch = 256,
                n_adv = 5,
@@ -341,12 +341,12 @@ class AAE(object):
   '''
   def read_input_from_files(self, filename = 'input_preprocessed.h5'):
     self.file = pd.HDFStore(filename, 'r')
-    self.n_dimensions = self.file['df'].shape[1]-3
+    self.n_dimensions = self.file['df'].shape[1]-4
     self.col_signal = self.file['df'].columns.get_loc('sample')
     self.col_syst = self.file['df'].columns.get_loc('syst')
     self.col_weight = self.file['df'].columns.get_loc('weight')
-    self.sigma = self.file['df'].std(axis = 0).drop(['sample', 'syst', 'weight'], axis = 0)
-    self.mean = self.file['df'].mean(axis = 0).drop(['sample', 'syst', 'weight'], axis = 0)
+    self.sigma = self.file['df'].std(axis = 0).drop(['sample', 'syst', 'weight', 'train'], axis = 0)
+    self.mean = self.file['df'].mean(axis = 0).drop(['sample', 'syst', 'weight', 'train'], axis = 0)
     self.sumWSignal = self.file['df'].loc[self.file['df']['sample'] == 1, 'weight'].sum()
     self.sumWBkg = self.file['df'].loc[self.file['df']['sample'] == 0, 'weight'].sum()
     self.sumW = self.sumWSignal + self.sumWBkg
@@ -356,7 +356,7 @@ class AAE(object):
     import seaborn as sns
 
     nominal = self.file['test_nominal'].iloc[:, 0]
-    x = self.file['df'].loc[nominal, :].drop(['sample', 'syst', 'weight'], axis = 1)
+    x = self.file['df'].loc[nominal, :].drop(['sample', 'syst', 'weight', 'train'], axis = 1)
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111)
     sns.heatmap(np.corrcoef(x, rowvar = 0),
@@ -548,7 +548,7 @@ class AAE(object):
         r = rows[i*self.n_batch : (i+1)*self.n_batch]
         r = sorted(r)
         df = self.file.select('df', where = 'index = r')
-        x_batch = (df.drop(['weight', 'sample', 'syst'], axis = 1) - self.mean)/self.sigma
+        x_batch = (df.drop(['weight', 'sample', 'syst', 'train'], axis = 1) - self.mean)/self.sigma
         y_batch = df.loc[:, 'sample']
         #wmask = ((y_batch == 1)*self.sumWBkg + (y_batch == 0)*self.sumWSig)/self.sumW
         x_batch_w = df.loc[:, 'weight'] #*wmask
@@ -563,7 +563,7 @@ class AAE(object):
         r = rows[i*self.n_batch : (i+1)*self.n_batch]
         r = sorted(r)
         df = self.file.select('df', where = 'index = r')
-        x_batch = (df.drop(['weight', 'sample', 'syst'], axis = 1) - self.mean)/self.sigma
+        x_batch = (df.drop(['weight', 'sample', 'syst', 'train'], axis = 1) - self.mean)/self.sigma
         y_batch = df.loc[:, 'sample']
         #wmask = ((y_batch == 1)*self.sumWBkg + (y_batch == 0)*self.sumWSig)/self.sumW
         x_batch_w = df.loc[:, 'weight'] #*wmask
@@ -825,14 +825,17 @@ def main():
                     default='input.h5',
                     help='Name of the file from where to read the input. (default: "input.h5")')
   parser.add_argument('--load-trained', dest='trained', action='store',
-                    default='30000',
-                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "30000")')
+                    default='5000',
+                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "1000")')
   parser.add_argument('--prefix', dest='prefix', action='store',
                     default='aae',
                     help='Prefix to be added to filenames when producing plots. (default: "aae")')
-  parser.add_argument('--no-adv', dest='no_adv', action='store',
+  parser.add_argument('--lambda', dest='l', action='store',
+                    default=1.0,
+                    help='Value of lambda_decorr. (default: 1.0)')
+  parser.add_argument('--no-adv', dest='no_adv', action='store_true',
                     default=False,
-                    help='If True, train only the autoencoder and discriminator. (default: False)')
+                    help='De-activate adversarial training?')
   parser.add_argument('--mode', metavar='MODE', choices=['train', 'plot_loss', 'plot_input', 'plot_output', 'plot_disc', 'plot_adv'],
                      default = 'train',
                      help='The mode is either "train" (a neural network), "plot_loss" (plot loss from training), "plot_input" (plot input variables and correlations), "plot_output" (plot output variables), "plot_disc" (plot discriminator output), "plot_adv" (plot adv. output). (default: train)')
@@ -845,7 +848,7 @@ def main():
   if not os.path.exists(args.network_dir):
     os.makedirs(args.network_dir)
 
-  network = AAE(no_adv = args.no_adv)
+  network = AAE(no_adv = args.no_adv, lambda_decorr = float(args.l))
 
   # read it from disk
   network.read_input_from_files(filename = args.input)
@@ -854,6 +857,7 @@ def main():
   var.remove('syst')
   var.remove('sample')
   var.remove('weight')
+  var.remove('train')
 
   # when training make some debug plots and prepare the network
   if args.mode == 'train':
