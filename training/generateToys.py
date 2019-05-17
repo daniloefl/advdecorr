@@ -25,19 +25,28 @@ Generate a toy sample for signal and background.
 '''
 def make_sample(syst, N):
   global names
-  data_o, data_t = sklearn.datasets.make_moons(n_samples = N, noise = 0.3)
-  data = copy.deepcopy(data_o)
-  theta = 0
-  if syst > 0.5:
-    theta = 10*np.pi/180.
-  data[:,0] = np.cos(theta)*data_o[:,0] - np.sin(theta)*data[:,1] 
-  data[:,1] = np.sin(theta)*data_o[:,0] + np.cos(theta)*data[:,1] 
+  data = np.zeros(shape = (N, 2))
+  data_t = np.zeros(shape = (N))
+  for i in range(0, N):
+    # sample y
+    y = np.random.uniform(0, 1)
+    if y < 0.5:
+      y = 0.0
+    else:
+      y = 1.0
+    z = syst
+    data_t[i] = y
+    if y == 0:
+      x = np.random.multivariate_normal(mean = (0, 0), cov = [[1, -0.5], [-0.5, 1]])
+    else:
+      x = np.random.multivariate_normal(mean = (1, 1+z), cov = [[1, 0], [0, 1]])
+    data[i,:] = x
   return data, data_t, names
 
 '''
 Generate toy sample and save it on disk.
 '''
-def prepare_input(filename = 'input_ee.h5'):
+def prepare_input(filename = 'input_toys.h5'):
   global names
   import sklearn.datasets
   # make input file

@@ -67,9 +67,9 @@ class GAN(object):
   4) Go back to 2 and repeat this n_iteration times.
   '''
 
-  def __init__(self, n_iteration = 10050, n_pretrain = 500, n_adv = 10,
-               n_batch = 256,
-               lambda_decorr = 1.0,
+  def __init__(self, n_iteration = 501, n_pretrain = 0, n_adv = 500,
+               n_batch = 128,
+               lambda_decorr = 50.0,
                n_eval = 50,
                no_adv = False):
     '''
@@ -97,28 +97,21 @@ class GAN(object):
     Create adv. network.
   '''
   def create_adv(self):
-    self.advall_input = Input(shape = (self.n_dimensions,), name = 'advall_input')
+    self.advsig_input = Input(shape = (1,), name = 'advsig_input')
+    self.advaux_input = Input(shape = (1,), name = 'advaux_input')
     self.adv_input = Input(shape = (1,), name = 'adv_input')
-    xc = K.layers.Concatenate()([self.advall_input, self.adv_input])
+    xc = K.layers.Concatenate()([self.advsig_input, self.adv_input])
     #xc = self.adv_input
-    xc = Dense(200, activation = None)(xc)
+    xc = Dense(20, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = Dense(100, activation = None)(xc)
-    #xc = K.layers.BatchNormalization()(xc)
-    xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = Dense(50, activation = None)(xc)
-    xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = Dense(40, activation = None)(xc)
-    #xc = K.layers.BatchNormalization()(xc)
-    xc = K.layers.LeakyReLU(0.2)(xc)
-    xc = Dense(10, activation = None)(xc)
+    xc = Dense(20, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
     xc = Dense(1, activation = 'sigmoid')(xc)
-    self.adv = Model([self.advall_input, self.adv_input], xc, name = "adv")
+    self.adv = Model([self.advsig_input, self.adv_input], xc, name = "adv")
     #self.adv = Model(self.adv_input, xc, name = "adv")
     self.adv.trainable = True
     self.adv.compile(loss = K.losses.binary_crossentropy,
-                        optimizer = Adam(lr = 1e-4), metrics = [])
+                        optimizer = Adam(lr = 1e-3), metrics = [])
 
   '''
   Create discriminator network.
@@ -127,24 +120,14 @@ class GAN(object):
     self.disc_input = Input(shape = (self.n_dimensions,), name = 'disc_input')
 
     xd = self.disc_input
-    xd = Dense(200, activation = None)(xd)
-    xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = Dense(100, activation = None)(xd)
-    #xd = K.layers.BatchNormalization()(xd)
-    xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = Dense(50, activation = None)(xd)
-    xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = Dense(40, activation = None)(xd)
-    #xd = K.layers.BatchNormalization()(xd)
-    xd = K.layers.LeakyReLU(0.2)(xd)
-    xd = Dense(30, activation = None)(xd)
-    xd = K.layers.LeakyReLU(0.2)(xd)
+    xd = Dense(20, activation = None)(xd)
+    xd = K.layers.Activation('tanh')(xd)
     xd = Dense(20, activation = None)(xd)
     xd = K.layers.LeakyReLU(0.2)(xd)
     xd = Dense(1, activation = 'sigmoid')(xd)
     self.disc = Model(self.disc_input, xd, name = "disc")
     self.disc.trainable = True
-    self.disc.compile(loss = K.losses.binary_crossentropy, optimizer = Adam(lr = 1e-4), metrics = [])
+    self.disc.compile(loss = K.losses.binary_crossentropy, optimizer = Adam(lr = 1e-3), metrics = [])
 
   '''
   Create all networks.
@@ -161,30 +144,32 @@ class GAN(object):
     self.any_input = Input(shape = (self.n_dimensions,), name = 'any_input')
     self.nominal_input = Input(shape = (self.n_dimensions,), name = 'nominal_input')
     self.syst_input = Input(shape = (self.n_dimensions,), name = 'syst_input')
+    self.sig_input = Input(shape = (1,), name = 'sig_input')
+    self.aux_input = Input(shape = (1,), name = 'aux_input')
 
     self.disc.trainable = False
     self.adv.trainable = True
-    self.disc_fixed_adv = Model([self.any_input],
-                                [self.adv([self.any_input, self.disc(self.any_input)])],
-                                #[self.adv(self.disc(self.any_input))],
+    self.disc_fixed_adv = Model([self.any_input, self.sig_input],
+                                [self.adv([self.sig_input, self.disc(self.any_input)])],
+                                #[self.adv([self.sig_input, self.disc(self.any_input)])],
                                 name = "disc_fixed_adv")
     self.disc_fixed_adv.compile(loss = [K.losses.binary_crossentropy],
                                 loss_weights = [self.lambda_decorr],
                                 #optimizer = RMSprop(lr = 1e-4), metrics = [])
-                                optimizer = Adam(lr = 1e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
+                                optimizer = Adam(lr = 1e-4, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
     self.disc.trainable = True
     self.adv.trainable = False
-    self.disc_adv_fixed = Model([self.nominal_input, self.any_input],
+    self.disc_adv_fixed = Model([self.nominal_input, self.any_input, self.sig_input],
                                 [self.disc(self.nominal_input),
-                                 self.adv([self.any_input, self.disc(self.any_input)])],
-                                 #self.adv(self.disc(self.any_input))],
+                                 self.adv([self.sig_input, self.disc(self.any_input)])],
+                                 #self.adv([self.sig_input, self.disc(self.any_input)])],
                                 name = "disc_adv_fixed")
     self.disc_adv_fixed.compile(loss = [K.losses.binary_crossentropy,
                                         K.losses.binary_crossentropy],
                                    loss_weights = [1.0, -self.lambda_decorr],
                                    #optimizer = RMSprop(lr = 1e-4), metrics = [])
-                                   optimizer = Adam(lr = 1e-5, beta_1 = 0, beta_2 = 0.9), metrics = [])
+                                   optimizer = Adam(lr = 1e-4, beta_1 = 0, beta_2 = 0.9), metrics = [])
 
 
     print("Signal/background discriminator:")
@@ -373,11 +358,11 @@ class GAN(object):
     import seaborn as sns
     # use get_continuour_batch to read directly from the file
     out_syst_nominal = []
-    for x,w,y,s in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.adv.predict([x, self.disc.predict(x)]))
+    for x,w,y,s in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.adv.predict([y, self.disc.predict(x)]))
     #for x,w,y,s in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.adv.predict(self.disc.predict(x)))
     out_syst_nominal = np.array(out_syst_nominal)
     out_syst_var = []
-    for x,w,y,s in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.adv.predict([x, self.disc.predict(x)]))
+    for x,w,y,s in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.adv.predict([y, self.disc.predict(x)]))
     #for x,w,y,s in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.adv.predict(self.disc.predict(x)))
     out_syst_var = np.array(out_syst_var)
     bins = np.linspace(np.amin(out_syst_nominal), np.amax(out_syst_nominal), 10)
@@ -450,6 +435,7 @@ class GAN(object):
     self.adv_loss_sys_train = np.array([])
     self.disc_loss_train = np.array([])
 
+    iter_any_sig = self.get_batch(origin = 'train', noStop = True, signal = False)
     iter_nom = self.get_batch(origin = 'train', syst = False, noStop = True)
     iter_any = self.get_batch(origin = 'train', noStop = True)
     iter_test_nom = self.get_batch(origin = 'test', syst = False, noStop = True)
@@ -459,20 +445,20 @@ class GAN(object):
     for epoch in range(self.n_iteration):
       if self.no_adv:
         #print("Training with no adv.", self.no_adv, not self.no_adv, self.lambda_decorr)
-        x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
+        #x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
+        x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any)
         self.disc.trainable = True
-        self.disc.train_on_batch([x_batch_nom],
-                                 [y_batch_nom],
-                                 sample_weight = [x_batch_nom_w])
+        self.disc.train_on_batch([x_batch_any],
+                                 [y_batch_any],
+                                 sample_weight = [x_batch_any_w])
 
         n_adv = self.n_adv
         for k in range(0, n_adv):
-          x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
-          x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any)
+          x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any_sig) ## TODO
 
           self.disc.trainable = False
           self.adv.trainable = True
-          self.disc_fixed_adv.train_on_batch([x_batch_any],
+          self.disc_fixed_adv.train_on_batch([x_batch_any, y_batch_any],
                                              [s_batch_any],
                                              sample_weight = [x_batch_any_w])
 
@@ -480,19 +466,18 @@ class GAN(object):
         #print("Training with adv.", self.no_adv, not self.no_adv, self.lambda_decorr)
         # step 0 - pretraining
         if epoch < self.n_pretrain:
-          x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
+          x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any)
           self.disc.trainable = True
-          self.disc.train_on_batch([x_batch_nom],
-                                   [y_batch_nom],
-                                   sample_weight = [x_batch_nom_w])
+          self.disc.train_on_batch([x_batch_any],
+                                   [y_batch_any],
+                                   sample_weight = [x_batch_any_w])
           n_adv = self.n_adv
           for k in range(0, n_adv):
-            x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
-            x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any)
+            x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any_sig) ## TODO
 
             self.disc.trainable = False
             self.adv.trainable = True
-            self.disc_fixed_adv.train_on_batch([x_batch_any],
+            self.disc_fixed_adv.train_on_batch([x_batch_any, y_batch_any],
                                                [s_batch_any],
                                                sample_weight = [x_batch_any_w])
 
@@ -502,24 +487,22 @@ class GAN(object):
           self.adv.trainable = True
           n_adv = self.n_adv
           for k in range(0, n_adv):
-            x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
-            x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any)
+            x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any_sig) ## TODO
 
             self.disc.trainable = False
             self.adv.trainable = True
-            self.disc_fixed_adv.train_on_batch([x_batch_any],
+            self.disc_fixed_adv.train_on_batch([x_batch_any, y_batch_any],
                                                [s_batch_any],
                                                sample_weight = [x_batch_any_w])
 
           # step generator
-          x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
           x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any)
 
           self.disc.trainable = True
           self.adv.trainable = False
-          self.disc_adv_fixed.train_on_batch([x_batch_nom, x_batch_any],
-                                             [y_batch_nom, s_batch_any],
-                                             sample_weight = [x_batch_nom_w, x_batch_any_w])
+          self.disc_adv_fixed.train_on_batch([x_batch_any, x_batch_any, y_batch_any],
+                                             [y_batch_any, s_batch_any],
+                                             sample_weight = [x_batch_any_w, x_batch_any_w])
   
       if epoch % self.n_eval == 0:
         disc_metric = 0
@@ -528,13 +511,13 @@ class GAN(object):
         x,w,y,s = next(iter_test_nom)
         disc_metric += self.disc.evaluate(x.values, y.values, sample_weight = w.values, verbose = 0)
         x,w,y,s = next(iter_test_any)
-        adv_metric = self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
+        adv_metric = self.adv.evaluate([y.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
         #adv_metric = self.adv.evaluate(self.disc.predict(x.values, verbose = 0), s.values, sample_weight = w.values, verbose = 0)
         x,w,y,s = next(iter_test_nom)
-        adv_metric_nom += self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
+        adv_metric_nom += self.adv.evaluate([y.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
         #adv_metric_nom += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), s.values, sample_weight = w.values, verbose = 0)
         x,w,y,s = next(iter_test_sys)
-        adv_metric_syst += self.adv.evaluate([x.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
+        adv_metric_syst += self.adv.evaluate([y.values, self.disc.predict(x.values, verbose = 0)], s.values, sample_weight = w.values, verbose = 0)
         #adv_metric_syst += self.adv.evaluate(self.disc.predict(x.values, verbose = 0), s.values, sample_weight = w.values, verbose = 0)
         if adv_metric == 0: adv_metric = 1e-20
 
@@ -631,9 +614,9 @@ class GAN(object):
     self.adv_input = K.layers.Input(shape = (1,), name = 'adv_input')
     self.disc_input = K.layers.Input(shape = (self.n_dimensions,), name = 'disc_input')
 
-    self.disc.compile(loss = K.losses.binary_crossentropy, optimizer = K.optimizers.Adam(lr = 1e-5), metrics = [])
+    self.disc.compile(loss = K.losses.binary_crossentropy, optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
     self.adv.compile(loss = K.losses.binary_crossentropy,
-                        optimizer = K.optimizers.Adam(lr = 1e-4), metrics = [])
+                        optimizer = K.optimizers.Adam(lr = 1e-3), metrics = [])
     self.create_networks()
 
 def main():
@@ -650,8 +633,8 @@ def main():
                     default='input.h5',
                     help='Name of the file from where to read the input. (default: "input.h5")')
   parser.add_argument('--load-trained', dest='trained', action='store',
-                    default='10000',
-                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "10000")')
+                    default='500',
+                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "500")')
   parser.add_argument('--prefix', dest='prefix', action='store',
                     default='gan',
                     help='Prefix to be added to filenames when producing plots. (default: "gan")')
@@ -673,6 +656,10 @@ def main():
   if not os.path.exists(args.network_dir):
     os.makedirs(args.network_dir)
 
+  if not args.no_adv:
+    print("Using adversary.")
+  if args.no_adv:
+    print("NOT using adversary.")
   network = GAN(no_adv = args.no_adv, lambda_decorr = float(args.l))
 
   # read it from disk

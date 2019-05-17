@@ -57,7 +57,7 @@ class AAE(object):
   '''
 
   def __init__(self,
-               n_latent = 8,
+               n_latent = 9,
                n_iteration = 5050,
                n_pretrain = 0,
                n_batch = 256,
@@ -93,7 +93,7 @@ class AAE(object):
   '''
   def create_adv(self):
     self.adv_input = Input(shape = (self.n_latent,), name = 'adv_input')
-    self.advall_input = Input(shape = (self.n_dimensions,), name = 'advall_input')
+    self.advall_input = Input(shape = (1,), name = 'advall_input')
     xc = K.layers.Concatenate()([self.advall_input, self.adv_input])
     xc = Dense(200, activation = None)(xc)
     xc = K.layers.LeakyReLU(0.2)(xc)
@@ -207,6 +207,7 @@ class AAE(object):
     self.any_input = Input(shape = (self.n_dimensions,), name = 'any_input')
     self.nom_input = Input(shape = (self.n_dimensions,), name = 'nom_input')
     self.sys_input = Input(shape = (self.n_dimensions,), name = 'sys_input')
+    self.sig_input = Input(shape = (1,), name = 'sig_input')
 
     self.any_latent = self.enc(self.any_input)
     self.nom_latent = self.enc(self.nom_input)
@@ -222,9 +223,9 @@ class AAE(object):
     self.enc.trainable = True
     self.dec.trainable = True
     self.adv.trainable = False
-    self.aae = Model([self.nom_input, self.any_input],
+    self.aae = Model([self.nom_input, self.any_input, self.sig_input],
                      [self.dec(self.nom_latent),
-                      self.adv([self.any_input, self.any_latent])],
+                      self.adv([self.sig_input, self.any_latent])],
                      name = 'aae')
     self.aae.compile(loss = [rec_loss,
                              K.losses.binary_crossentropy,
@@ -237,9 +238,9 @@ class AAE(object):
     self.enc.trainable = True
     self.dec.trainable = False
     self.adv.trainable = False
-    self.aae_only_enc = Model([self.nom_input, self.any_input],
+    self.aae_only_enc = Model([self.nom_input, self.any_input, self.sig_input],
                      [self.dec(self.nom_latent),
-                      self.adv([self.any_input, self.any_latent])],
+                      self.adv([self.sig_input, self.any_latent])],
                      name = 'aae_only_enc')
     self.aae_only_enc.compile(loss = [rec_loss,
                              K.losses.binary_crossentropy,
@@ -264,8 +265,8 @@ class AAE(object):
     self.enc.trainable = False
     self.dec.trainable = False
     self.adv.trainable = True
-    self.ae_fixed_adv = Model([self.any_input],
-                              [self.adv([self.any_input, self.any_latent])],
+    self.ae_fixed_adv = Model([self.any_input, self.sig_input],
+                              [self.adv([self.sig_input, self.any_latent])],
                               name = 'ae_fixed_adv')
     self.ae_fixed_adv.compile(loss = [K.losses.binary_crossentropy],
                               loss_weights = [self.lambda_decorr],
@@ -282,8 +283,8 @@ class AAE(object):
 
     self.enc.trainable = False
     self.adv.trainable = True
-    self.enc_adv = Model([self.any_input],
-                          [self.adv([self.any_input, self.any_latent])],
+    self.enc_adv = Model([self.any_input, self.sig_input],
+                          [self.adv([self.sig_input, self.any_latent])],
                           name = 'enc_adv')
 
     self.enc.trainable = True
@@ -507,10 +508,10 @@ class AAE(object):
     import seaborn as sns
     # use get_continuour_batch to read directly from the file
     out_syst_nominal = []
-    for x,w,y,s in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.enc_adv.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', syst = False): out_syst_nominal.extend(self.enc_adv.predict([x, y]))
     out_syst_nominal = np.array(out_syst_nominal)
     out_syst_var = []
-    for x,w,y,s in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.enc_adv.predict(x))
+    for x,w,y,s in self.get_batch(origin = 'test', syst = True): out_syst_var.extend(self.enc_adv.predict([x, y]))
     out_syst_var = np.array(out_syst_var)
     bins = np.linspace(np.amin(out_syst_nominal), np.amax(out_syst_nominal), 10)
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -599,7 +600,7 @@ class AAE(object):
           self.enc.trainable = False
           self.dec.trainable = False
           self.adv.trainable = True
-          self.ae_fixed_adv.train_on_batch([x_batch_any],
+          self.ae_fixed_adv.train_on_batch([x_batch_any, y_batch_any],
                                            [s_batch_any],
                                            sample_weight = [x_batch_any_w]
                                           )
@@ -620,7 +621,7 @@ class AAE(object):
           self.enc.trainable = False
           self.dec.trainable = False
           self.adv.trainable = True
-          self.ae_fixed_adv.train_on_batch([x_batch_any],
+          self.ae_fixed_adv.train_on_batch([x_batch_any, y_batch_any],
                                            [s_batch_any],
                                            sample_weight = [x_batch_any_w]
                                           )
@@ -642,7 +643,7 @@ class AAE(object):
           self.enc.trainable = True
           self.dec.trainable = False
           self.adv.trainable = False
-          self.aae_only_enc.train_on_batch([x_batch_nom, x_batch_any],
+          self.aae_only_enc.train_on_batch([x_batch_nom, x_batch_any, y_batch_any],
                                   [x_batch_nom,
                                    s_batch_any
                                   ],
@@ -671,7 +672,7 @@ class AAE(object):
         x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
         x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any)
         tmp, rec_metric, adv_metric = self.aae.evaluate(
-                                                       [x_batch_nom.values, x_batch_any.values],
+                                                       [x_batch_nom.values, x_batch_any.values, y_batch_any.values],
                                                        [x_batch_nom.values,
                                                         s_batch_any
                                                        ],
@@ -687,7 +688,7 @@ class AAE(object):
                                              sample_weight = [x_batch_nom_w.values],
                                              verbose = 0)
         tmp, tmp2, adv_metric_nom = self.aae.evaluate(
-                                                       [x_batch_nom.values, x_batch_nom.values],
+                                                       [x_batch_nom.values, x_batch_nom.values, y_batch_nom.values],
                                                        [x_batch_nom.values,
                                                         s_batch_nom
                                                        ],
@@ -696,7 +697,7 @@ class AAE(object):
                                                                        ],
                                                        verbose = 0)
         tmp, tmp2, adv_metric_sys = self.aae.evaluate(
-                                                       [x_batch_nom.values, x_batch_sys.values],
+                                                       [x_batch_nom.values, x_batch_sys.values, y_batch_sys.values],
                                                        [x_batch_nom.values,
                                                         s_batch_sys
                                                        ],
@@ -848,6 +849,10 @@ def main():
   if not os.path.exists(args.network_dir):
     os.makedirs(args.network_dir)
 
+  if not args.no_adv:
+    print("Using adversary.")
+  if args.no_adv:
+    print("NOT using adversary.")
   network = AAE(no_adv = args.no_adv, lambda_decorr = float(args.l))
 
   # read it from disk
