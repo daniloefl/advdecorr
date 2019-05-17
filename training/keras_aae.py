@@ -826,7 +826,7 @@ def main():
                     help='Name of the file from where to read the input. (default: "input.h5")')
   parser.add_argument('--load-trained', dest='trained', action='store',
                     default='5000',
-                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "1000")')
+                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "5000")')
   parser.add_argument('--prefix', dest='prefix', action='store',
                     default='aae',
                     help='Prefix to be added to filenames when producing plots. (default: "aae")')
