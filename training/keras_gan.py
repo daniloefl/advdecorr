@@ -67,7 +67,7 @@ class GAN(object):
   4) Go back to 2 and repeat this n_iteration times.
   '''
 
-  def __init__(self, n_iteration = 501, n_pretrain = 0, n_adv = 500,
+  def __init__(self, n_iteration = 10001, n_pretrain = 0, n_adv = 100,
                n_batch = 128,
                lambda_decorr = 50.0,
                n_eval = 50,
@@ -435,7 +435,8 @@ class GAN(object):
     self.adv_loss_sys_train = np.array([])
     self.disc_loss_train = np.array([])
 
-    iter_any_sig = self.get_batch(origin = 'train', noStop = True, signal = False)
+    iter_any_bkg = self.get_batch(origin = 'train', noStop = True, signal = False)
+    iter_any_sig = self.get_batch(origin = 'train', noStop = True, signal = True)
     iter_nom = self.get_batch(origin = 'train', syst = False, noStop = True)
     iter_any = self.get_batch(origin = 'train', noStop = True)
     iter_test_nom = self.get_batch(origin = 'test', syst = False, noStop = True)
@@ -454,10 +455,14 @@ class GAN(object):
 
         n_adv = self.n_adv
         for k in range(0, n_adv):
-          x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any_sig) ## TODO
-
           self.disc.trainable = False
           self.adv.trainable = True
+          x_batch_sig, x_batch_sig_w, y_batch_sig, s_batch_sig = next(iter_any_sig)
+          x_batch_bkg, x_batch_bkg_w, y_batch_bkg, s_batch_bkg = next(iter_any_bkg)
+          x_batch_any   = np.concatenate( (x_batch_sig, x_batch_bkg), axis = 0)
+          x_batch_any_w = np.concatenate( (x_batch_sig_w, x_batch_bkg_w), axis = 0)
+          y_batch_any   = np.concatenate( (y_batch_sig, y_batch_bkg), axis = 0)
+          s_batch_any   = np.concatenate( (s_batch_sig, s_batch_bkg), axis = 0)
           self.disc_fixed_adv.train_on_batch([x_batch_any, y_batch_any],
                                              [s_batch_any],
                                              sample_weight = [x_batch_any_w])
@@ -473,10 +478,14 @@ class GAN(object):
                                    sample_weight = [x_batch_any_w])
           n_adv = self.n_adv
           for k in range(0, n_adv):
-            x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any_sig) ## TODO
-
             self.disc.trainable = False
             self.adv.trainable = True
+            x_batch_sig, x_batch_sig_w, y_batch_sig, s_batch_sig = next(iter_any_sig)
+            x_batch_bkg, x_batch_bkg_w, y_batch_bkg, s_batch_bkg = next(iter_any_bkg)
+            x_batch_any   = np.concatenate( (x_batch_sig, x_batch_bkg), axis = 0)
+            x_batch_any_w = np.concatenate( (x_batch_sig_w, x_batch_bkg_w), axis = 0)
+            y_batch_any   = np.concatenate( (y_batch_sig, y_batch_bkg), axis = 0)
+            s_batch_any   = np.concatenate( (s_batch_sig, s_batch_bkg), axis = 0)
             self.disc_fixed_adv.train_on_batch([x_batch_any, y_batch_any],
                                                [s_batch_any],
                                                sample_weight = [x_batch_any_w])
@@ -487,10 +496,14 @@ class GAN(object):
           self.adv.trainable = True
           n_adv = self.n_adv
           for k in range(0, n_adv):
-            x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any_sig) ## TODO
-
             self.disc.trainable = False
             self.adv.trainable = True
+            x_batch_sig, x_batch_sig_w, y_batch_sig, s_batch_sig = next(iter_any_sig)
+            x_batch_bkg, x_batch_bkg_w, y_batch_bkg, s_batch_bkg = next(iter_any_bkg)
+            x_batch_any   = np.concatenate( (x_batch_sig, x_batch_bkg), axis = 0)
+            x_batch_any_w = np.concatenate( (x_batch_sig_w, x_batch_bkg_w), axis = 0)
+            y_batch_any   = np.concatenate( (y_batch_sig, y_batch_bkg), axis = 0)
+            s_batch_any   = np.concatenate( (s_batch_sig, s_batch_bkg), axis = 0)
             self.disc_fixed_adv.train_on_batch([x_batch_any, y_batch_any],
                                                [s_batch_any],
                                                sample_weight = [x_batch_any_w])
@@ -633,8 +646,8 @@ def main():
                     default='input.h5',
                     help='Name of the file from where to read the input. (default: "input.h5")')
   parser.add_argument('--load-trained', dest='trained', action='store',
-                    default='500',
-                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "500")')
+                    default='10000',
+                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "10000")')
   parser.add_argument('--prefix', dest='prefix', action='store',
                     default='gan',
                     help='Prefix to be added to filenames when producing plots. (default: "gan")')
