@@ -566,7 +566,7 @@ class GAN(object):
     it = np.arange(0, self.n_iteration, self.n_eval)
     plt.plot(it, (self.disc_loss_train), linestyle = '-', color = 'r', label = r'$\mathcal{L}_{\mathrm{disc}}$')
     plt.plot(it, (np.fabs(self.adv_loss_train)), linestyle = '-', color = 'b', label = r' | $ \mathcal{L}_{\mathrm{adv}} |$')
-    plt.plot(it, (np.fabs(self.disc_loss_train - self.lambda_decorr*np.abs(self.adv_loss_train))), linestyle = '-', color = 'k', label = r'$\mathcal{L}_{\mathrm{disc}} - \lambda_{\mathrm{decorr}} |\mathcal{L}_{\mathrm{adv}}$|')
+    plt.plot(it, (np.fabs(self.disc_loss_train - self.lambda_decorr*np.fabs(self.adv_loss_train))), linestyle = '-', color = 'k', label = r'$\mathcal{L}_{\mathrm{disc}} - \lambda_{\mathrm{decorr}} |\mathcal{L}_{\mathrm{adv}}$|')
     if self.n_pretrain > 0:
       plt.axvline(x = self.n_pretrain, color = 'k', linestyle = '--', label = 'End of discriminator bootstrap')
       #plt.axvline(x = 2*self.n_pretrain, color = 'k', linestyle = ':', label = 'End of adv bootstrap')
@@ -652,8 +652,8 @@ def main():
                     default='gan',
                     help='Prefix to be added to filenames when producing plots. (default: "gan")')
   parser.add_argument('--lambda', dest='l', action='store',
-                    default=1.0,
-                    help='Value of lambda_decorr. (default: 1.0)')
+                    default=50.0,
+                    help='Value of lambda_decorr. (default: 50.0)')
   parser.add_argument('--no-adv', dest='no_adv', action='store_true',
                     default=False,
                     help='De-activate adversarial training?')
