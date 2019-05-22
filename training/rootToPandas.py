@@ -10,8 +10,8 @@ from __future__ import print_function
 
 # use this to read the ROOT file and save it in a .h5 file to use with Pandas (faster)
 def transformROOTToPandas(treeNameList = ["Nominal",
-                                          #'slope',
-                                          'JET_JER_SINGLE_NP__1up',
+                                          'slope',
+                                          #'JET_JER_SINGLE_NP__1up',
                                           #'JET_SR1_JET_GroupedNP_1__1up',# 'JET_SR1_JET_GroupedNP_2__1up', 'JET_SR1_JET_GroupedNP_3__1up',
                                           #'TAUS_TRUEHADTAU_SME_TES_DETECTOR__1up', 'TAUS_TRUEHADTAU_SME_TES_INSITU__1up',
                                           #'TAUS_TRUEHADTAU_SME_TES_MODEL__1up'
