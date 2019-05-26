@@ -18,8 +18,8 @@ The data used for tests can be a real data sample or a toy data can be produced 
 
 An example of the results for a toy model can be seen in `training/result_toy`.
 
-![Network output without adversary training](training/result_toy/ganna_discriminator_output_syst.pdf "Neural network output, trained without adversary")
-![Network output with adversary training](training/result_toy/gan_discriminator_output_syst.pdf "Neural network output, trained with adversary")
+![Network output without adversary training](training/result_toy/ganna_discriminator_output_syst.png "Neural network output, trained without adversary")
+![Network output with adversary training](training/result_toy/gan_discriminator_output_syst.png "Neural network output, trained with adversary")
 
 # Flask client-server model test for production
 
