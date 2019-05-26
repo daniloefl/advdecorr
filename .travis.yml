@@ -11,4 +11,4 @@ script:
  - test/test_docker.py
  - cd training
  - docker build -t advdecorr_training .
- - docker run advdecorr_training
+ - travis_wait 30 docker run advdecorr_training
