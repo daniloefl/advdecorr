@@ -15,8 +15,14 @@ if it is possible to learn the variable S. Another topology is implemented in `k
 a latent representation, before using such latent representation for classification.
 
 The data used for tests can be a real data sample or a toy data can be produced with `generateToys.py`.
+The toy consists of two variables, A and B, which are produced according to two different generative models: nominal and systematic variation.
+The marginal distributions of the model can be seen below.
 
-An example of the results for a toy model can be seen in `training/result_toy`.
+Variable A                 |  Variable B
+:-------------------------:|:-------------------------:
+![A](training/result_toy/generateToys_ratio_A_Variation_Nominal.png "A") | ![B](training/result_toy/generateToys_ratio_B_Variation_Nominal.png "B")
+
+An example of the neural network output for the toy model can be seen in `training/result_toy`.
 
 Without adversary          |  With adversary
 :-------------------------:|:-------------------------:
