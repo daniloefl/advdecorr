@@ -9,3 +9,6 @@ script:
  - netstat -nta
  - sleep 5
  - test/test_docker.py
+ - cd training
+ - docker build -t advdecorr_training .
+ - docker run advdecorr_training

@@ -645,6 +645,9 @@ def main():
   parser.add_argument('--input-file', dest='input', action='store',
                     default='input.h5',
                     help='Name of the file from where to read the input. (default: "input.h5")')
+  parser.add_argument('--iterations', dest='iterations', action='store',
+                    default='10001',
+                    help='Number of iterations for training. (default: "10001")')
   parser.add_argument('--load-trained', dest='trained', action='store',
                     default='10000',
                     help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "10000")')
@@ -673,7 +676,7 @@ def main():
     print("Using adversary.")
   if args.no_adv:
     print("NOT using adversary.")
-  network = GAN(no_adv = args.no_adv, lambda_decorr = float(args.l))
+  network = GAN(no_adv = args.no_adv, lambda_decorr = float(args.l), n_iteration = int(args.iterations))
 
   # read it from disk
   network.read_input_from_files(filename = args.input)
