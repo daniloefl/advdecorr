@@ -16,6 +16,11 @@ a latent representation, before using such latent representation for classificat
 
 The data used for tests can be a real data sample or a toy data can be produced with `generateToys.py`.
 
+An example of the results for a toy model can be seen in `training/result_toy`.
+
+![Network output without adversary training](training/result_toy/ganna_discriminator_output_syst.pdf "Neural network output, trained without adversary")
+![Network output with adversary training](training/result_toy/gan_discriminator_output_syst.pdf "Neural network output, trained with adversary")
+
 # Flask client-server model test for production
 
 The code in `production/` implements the production code, which receives data, loads the network and performs classification with the unseen input.
