@@ -9,7 +9,7 @@ COPY ./utils.py /training/utils.py
 COPY ./test_training.sh /training/test_training.sh
 WORKDIR /training
 
-RUN pip install sklearn numpy tables h5py pandas tensorflow keras matplotlib
+RUN pip install sklearn numpy tables h5py pandas tensorflow keras matplotlib seaborn
 
 ENTRYPOINT [ "./test_training.sh" ]
 
