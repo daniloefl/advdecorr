@@ -258,6 +258,49 @@ class GAN(object):
     plt.savefig(filename)
     plt.close("all")
 
+  def plot_roc(self, filename):
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    out_signal = []
+    for x,w,y,s in self.get_batch(origin = 'test', signal = True, syst = False): out_signal.extend(self.disc.predict(x))
+    out_signal = np.array(out_signal)
+    out_bkg = []
+    for x,w,y,s in self.get_batch(origin = 'test', signal = False, syst = False): out_bkg.extend(self.disc.predict(x))
+    out_bkg = np.array(out_bkg)
+
+    out_signal_s = []
+    for x,w,y,s in self.get_batch(origin = 'test', signal = True, syst = True): out_signal_s.extend(self.disc.predict(x))
+    out_signal_s = np.array(out_signal_s)
+    out_bkg_s = []
+    for x,w,y,s in self.get_batch(origin = 'test', signal = False, syst = True): out_bkg_s.extend(self.disc.predict(x))
+    out_bkg_s = np.array(out_bkg_s)
+
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111)
+    bins = np.linspace(0, 1, 200)
+    hist_signal, b = np.histogram(out_signal, bins = bins)
+    hist_bkg, b = np.histogram(out_bkg, bins = bins)
+    hist_signal_s, b = np.histogram(out_signal_s, bins = bins)
+    hist_bkg_s, b = np.histogram(out_bkg_s, bins = bins)
+    N = len(hist_signal)
+    eff = np.zeros(N)
+    fkr = np.zeros(N)
+    eff_s = np.zeros(N)
+    fkr_s = np.zeros(N)
+    for k in range(0, N):
+      eff[k] = np.sum(hist_signal[k:])/np.sum(hist_signal)
+      fkr[k] = np.sum(hist_bkg[k:])/np.sum(hist_bkg)
+      eff_s[k] = np.sum(hist_signal_s[k:])/np.sum(hist_signal_s)
+      fkr_s[k] = np.sum(hist_bkg_s[k:])/np.sum(hist_bkg_s)
+    sns.lineplot(eff, 1 - fkr, linewidth = 2, color = 'b', label = 'Nominal')
+    sns.lineplot(eff_s, 1 - fkr_s, linewidth = 2, color = 'r', label = 'Systematic variation')
+    ax.set(xlabel = 'Efficiency', ylabel = '1 - fake rate', title = '');
+    ax.set_xlim(0.8, 1.0)
+    ax.set_ylim(0.8, 1.0)
+    ax.legend(frameon = False)
+    plt.savefig(filename)
+    plt.close("all")
+
   def plot_discriminator_output_syst(self, filename):
     import matplotlib.pyplot as plt
     import seaborn as sns
@@ -326,7 +369,7 @@ class GAN(object):
     ax[1].plot(bel, hr_bkg, color = 'b', linewidth = 2, drawstyle = 'steps-post')
     #ax[1].errorbar(bel, hr_bkg, yerr = er_bkg, color = 'b', drawstyle = 'steps-post')
 
-    ax[1].set_ylim([0.5, 1.5])
+    ax[1].set_ylim([0.8, 1.2])
     m = np.amax(np.concatenate( (h_signal, h_bkg, h_signal_s, h_bkg_s) ) )
     ax[0].set_ylim([0.0, 1.1*m])
 
@@ -446,12 +489,12 @@ class GAN(object):
     for epoch in range(self.n_iteration):
       if self.no_adv:
         #print("Training with no adv.", self.no_adv, not self.no_adv, self.lambda_decorr)
-        #x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
-        x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any)
+        x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
+        #x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any)
         self.disc.trainable = True
-        self.disc.train_on_batch([x_batch_any],
-                                 [y_batch_any],
-                                 sample_weight = [x_batch_any_w])
+        self.disc.train_on_batch([x_batch_nom],
+                                 [y_batch_nom],
+                                 sample_weight = [x_batch_nom_w])
 
         n_adv = self.n_adv
         for k in range(0, n_adv):
@@ -471,11 +514,12 @@ class GAN(object):
         #print("Training with adv.", self.no_adv, not self.no_adv, self.lambda_decorr)
         # step 0 - pretraining
         if epoch < self.n_pretrain:
-          x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any)
+          x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
+          #x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any)
           self.disc.trainable = True
-          self.disc.train_on_batch([x_batch_any],
-                                   [y_batch_any],
-                                   sample_weight = [x_batch_any_w])
+          self.disc.train_on_batch([x_batch_nom],
+                                   [y_batch_nom],
+                                   sample_weight = [x_batch_nom_w])
           n_adv = self.n_adv
           for k in range(0, n_adv):
             self.disc.trainable = False
@@ -509,7 +553,13 @@ class GAN(object):
                                                sample_weight = [x_batch_any_w])
 
           # step generator
-          x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any)
+          #x_batch_any, x_batch_any_w, y_batch_any, s_batch_any = next(iter_any)
+          x_batch_sig, x_batch_sig_w, y_batch_sig, s_batch_sig = next(iter_any_sig)
+          x_batch_bkg, x_batch_bkg_w, y_batch_bkg, s_batch_bkg = next(iter_any_bkg)
+          x_batch_any   = np.concatenate( (x_batch_sig, x_batch_bkg), axis = 0)
+          x_batch_any_w = np.concatenate( (x_batch_sig_w, x_batch_bkg_w), axis = 0)
+          y_batch_any   = np.concatenate( (y_batch_sig, y_batch_bkg), axis = 0)
+          s_batch_any   = np.concatenate( (s_batch_sig, s_batch_bkg), axis = 0)
 
           self.disc.trainable = True
           self.adv.trainable = False
@@ -657,9 +707,18 @@ def main():
   parser.add_argument('--no-adv', dest='no_adv', action='store_true',
                     default=False,
                     help='De-activate adversarial training?')
-  parser.add_argument('--mode', metavar='MODE', choices=['train', 'plot_loss', 'plot_input', 'plot_output', 'plot_disc', 'plot_adv'],
-                     default = 'train',
-                     help='The mode is either "train" (a neural network), "plot_loss" (plot loss from training), "plot_input" (plot input variables and correlations), "plot_output" (plot output variables), "plot_disc" (plot discriminator output), "plot_adv" (plot adv. output). (default: train)')
+  parser.add_argument('--train', dest='train', action='store_true',
+                     default = False,
+                     help='Train the neural network.')
+  parser.add_argument('--plot-loss', dest='plot_loss', action='store_true',
+                     default = False,
+                     help='Plot loss function.')
+  parser.add_argument('--plot-input', dest='plot_input', action='store_true',
+                     default = False,
+                     help='Plot input variables and correlations.')
+  parser.add_argument('--plot-output', dest='plot_output', action='store_true',
+                     default = False,
+                     help='Plot output variables.')
   args = parser.parse_args()
   prefix = args.prefix
   trained = args.trained
@@ -685,7 +744,7 @@ def main():
   var.remove('train')
 
   # when training make some debug plots and prepare the network
-  if args.mode == 'train':
+  if args.train:
     print("Plotting correlations.")
     network.plot_input_correlations("%s/%s_corr.pdf" % (args.result_dir, prefix))
     print("Plotting scatter plots.")
@@ -714,23 +773,20 @@ def main():
     network.plot_discriminator_output("%s/%s_discriminator_output.pdf" % (args.result_dir, prefix))
     print("Plotting adv output after training.")
     network.plot_adv_output("%s/%s_adv_output.pdf" % (args.result_dir, prefix))
-  elif args.mode == 'plot_loss':
-    network.load_loss("%s/%s_loss.h5" % (args.result_dir, prefix))
-    network.plot_train_metrics("%s/%s_training.pdf" % (args.result_dir, prefix), int(trained))
-  elif args.mode == 'plot_disc':
-    network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_adv_%s" % (args.network_dir, prefix, trained))
-    network.plot_discriminator_output("%s/%s_discriminator_output.pdf" % (args.result_dir, prefix))
-  elif args.mode == 'plot_adv':
-    network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_adv_%s" % (args.network_dir, prefix, trained))
-    network.plot_adv_output("%s/%s_adv_output.pdf" % (args.result_dir, prefix))
-  elif args.mode == 'plot_input':
+  elif args.plot_input:
     network.plot_input_correlations("%s/%s_corr.pdf" % (args.result_dir, prefix))
     network.plot_scatter_input(var[0], var[1], "%s/%s_scatter_%d_%d.png" % (args.result_dir, prefix, 0, 1))
-  elif args.mode == 'plot_output':
+  elif args.plot_loss:
+    network.load_loss("%s/%s_loss.h5" % (args.result_dir, prefix))
+    network.plot_train_metrics("%s/%s_training.pdf" % (args.result_dir, prefix), int(trained))
+  elif args.plot_output:
     network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_adv_%s" % (args.network_dir, prefix, trained))
     network.plot_discriminator_output_syst("%s/%s_discriminator_output_syst.pdf" % (args.result_dir, prefix))
+    network.plot_discriminator_output("%s/%s_discriminator_output.pdf" % (args.result_dir, prefix))
+    network.plot_adv_output("%s/%s_adv_output.pdf" % (args.result_dir, prefix))
+    network.plot_roc("%s/%s_roc.pdf" % (args.result_dir, prefix))
   else:
-    print('Option mode not understood.')
+    print('No action selected.')
 
 if __name__ == '__main__':
   main()
