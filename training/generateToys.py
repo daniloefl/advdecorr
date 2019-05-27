@@ -121,11 +121,11 @@ def plotRatio(filename = 'input_ee.h5', num = "Variation", den = "Nominal", var 
   cutDen = (df['syst'] == 0)
 
   # find bin size
-  c, bins = np.histogram(df.loc[cutDen, var], bins = 20, weights = df['weight'][cutDen])
-  for k in range(len(bins-1)):
-    if np.sum(c[0:k])/np.sum(c) > 0.99:
-      bins = np.arange(bins[0], bins[k], (bins[k] - bins[0])/20)
-      break
+  c, bins = np.histogram(df[var], bins = 20, weights = df['weight'])
+  #for k in range(len(bins-1)):
+  #  if np.sum(c[0:k])/np.sum(c) > 0.999:
+  #    bins = np.arange(bins[0], bins[k], (bins[k] - bins[0])/20)
+  #    break
   binwidth = bins[1]-bins[0]
   s = binwidth*0.5
 
@@ -188,8 +188,9 @@ def plotRatio(filename = 'input_ee.h5', num = "Variation", den = "Nominal", var 
   ax1.grid(linestyle = '-')
   ax2.grid(linestyle = '-')
   ax1.set_ylabel("Entries")
-  ax2.set_ylabel('Ratio (%s/%s)' % (num, den))
+  ax2.set_ylabel('%s/%s' % (num, den))
   ax2.set_xlabel(var)
+  ax2.set_xlim(bins[0], bins[-2])
   ax2.set_ylim(0.8, 1.2)
   yticks = ax1.yaxis.get_major_ticks() 
   yticks[0].label1.set_visible(False)
