@@ -703,8 +703,8 @@ def main():
                     default='4001',
                     help='Number of iterations for training. (default: "4001")')
   parser.add_argument('--load-trained', dest='trained', action='store',
-                    default='4000',
-                    help='Number to be appended to end of filename when loading pretrained networks. (default: "4000")')
+                    default='0',
+                    help='Number to be appended to end of filename when loading pretrained networks. (default: "0")')
   parser.add_argument('--prefix', dest='prefix', action='store',
                     default='gan',
                     help='Prefix to be added to filenames when producing plots. (default: "gan")')
@@ -760,7 +760,7 @@ def main():
     print("Plotting scatter plots.")
     network.plot_scatter_input(var[0], var[1], "%s/%s_scatter_%d_%d.png" % (args.result_dir, prefix, 0, 1))
 
-    if int(args.trained) >= 0:
+    if int(args.trained) > 0:
       network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_adv_%s" % (args.network_dir, prefix, trained))
     else:
       # create network
@@ -793,6 +793,8 @@ def main():
     network.load_loss("%s/%s_loss.h5" % (args.result_dir, prefix))
     network.plot_train_metrics("%s/%s_training.pdf" % (args.result_dir, prefix), int(trained))
   elif args.plot_output:
+    if int(trained) <= 0:
+      print("The number in option --load-trained must be a positive number to load a previously trained network at a specific batch training step. This may fail.")
     network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_adv_%s" % (args.network_dir, prefix, trained))
     network.plot_discriminator_output_syst("%s/%s_discriminator_output_syst.pdf" % (args.result_dir, prefix))
     network.plot_discriminator_output("%s/%s_discriminator_output.pdf" % (args.result_dir, prefix))
