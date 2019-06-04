@@ -71,7 +71,8 @@ class GAN(object):
                n_batch = 128,
                lambda_decorr = 100.0,
                n_eval = 50,
-               no_adv = False):
+               no_adv = False,
+               lr = 5e-5):
     '''
     Initialise the network.
 
@@ -88,6 +89,7 @@ class GAN(object):
     self.n_adv = n_adv
     self.n_batch = n_batch
     self.lambda_decorr = lambda_decorr
+    self.lr = lr
     self.n_eval = n_eval
     self.no_adv = no_adv
     self.adv = None
@@ -111,7 +113,7 @@ class GAN(object):
     #self.adv = Model(self.adv_input, xc, name = "adv")
     self.adv.trainable = True
     self.adv.compile(loss = K.losses.binary_crossentropy,
-                        optimizer = Adam(lr = 5e-5), metrics = [])
+                        optimizer = Adam(lr = self.lr), metrics = [])
 
   '''
   Create discriminator network.
@@ -127,7 +129,7 @@ class GAN(object):
     xd = Dense(1, activation = 'sigmoid')(xd)
     self.disc = Model(self.disc_input, xd, name = "disc")
     self.disc.trainable = True
-    self.disc.compile(loss = K.losses.binary_crossentropy, optimizer = Adam(lr = 5e-5), metrics = [])
+    self.disc.compile(loss = K.losses.binary_crossentropy, optimizer = Adam(lr = self.lr), metrics = [])
 
   '''
   Create all networks.
@@ -154,7 +156,7 @@ class GAN(object):
                                 name = "disc_fixed_adv")
     self.disc_fixed_adv.compile(loss = [K.losses.binary_crossentropy],
                                 loss_weights = [self.lambda_decorr],
-                                optimizer = Adam(lr = 5e-5), metrics = [])
+                                optimizer = Adam(lr = self.lr), metrics = [])
 
     self.disc.trainable = True
     self.adv.trainable = False
@@ -165,7 +167,7 @@ class GAN(object):
     self.disc_adv_fixed.compile(loss = [K.losses.binary_crossentropy,
                                         K.losses.binary_crossentropy],
                                    loss_weights = [1.0, -self.lambda_decorr],
-                                   optimizer = Adam(lr = 5e-5), metrics = [])
+                                   optimizer = Adam(lr = self.lr), metrics = [])
 
 
     print("Signal/background discriminator:")
@@ -679,9 +681,9 @@ class GAN(object):
     self.adv_input = K.layers.Input(shape = (1,), name = 'adv_input')
     self.disc_input = K.layers.Input(shape = (self.n_dimensions,), name = 'disc_input')
 
-    self.disc.compile(loss = K.losses.binary_crossentropy, optimizer = K.optimizers.Adam(lr = 5e-5), metrics = [])
+    self.disc.compile(loss = K.losses.binary_crossentropy, optimizer = K.optimizers.Adam(lr = self.lr), metrics = [])
     self.adv.compile(loss = K.losses.binary_crossentropy,
-                        optimizer = K.optimizers.Adam(lr = 5e-5), metrics = [])
+                        optimizer = K.optimizers.Adam(lr = self.lr), metrics = [])
     self.create_networks()
 
 def main():
@@ -709,6 +711,9 @@ def main():
   parser.add_argument('--lambda', dest='l', action='store',
                     default=100.0,
                     help='Value of lambda_decorr. (default: 100.0)')
+  parser.add_argument('--lr', dest='lr', action='store',
+                    default=5e-5,
+                    help='Value of the learning rate. (default: 1e-5)')
   parser.add_argument('--no-adv', dest='no_adv', action='store_true',
                     default=False,
                     help='De-activate adversarial training?')
@@ -737,7 +742,7 @@ def main():
     print("Using adversary.")
   if args.no_adv:
     print("NOT using adversary.")
-  network = GAN(no_adv = args.no_adv, lambda_decorr = float(args.l), n_iteration = int(args.iterations))
+  network = GAN(no_adv = args.no_adv, lambda_decorr = float(args.l), n_iteration = int(args.iterations), lr = float(args.lr))
 
   # read it from disk
   network.read_input_from_files(filename = args.input)
