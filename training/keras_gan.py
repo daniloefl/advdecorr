@@ -463,16 +463,22 @@ class GAN(object):
         yield x_batch, x_batch_w, y_batch, s_batch
       
 
-  def train(self, prefix, result_dir, network_dir):
+  def train(self, prefix, result_dir, network_dir, trained = 0):
     # algorithm:
     # 0) pretrain discriminator
     # 1) Train adv. to guess syst. (freezing discriminator)
     # 2) Train disc. to fool adv. (freezing adv.)
-    self.adv_gp_loss_train = np.array([])
     self.adv_loss_train = np.array([])
     self.adv_loss_nom_train = np.array([])
     self.adv_loss_sys_train = np.array([])
     self.disc_loss_train = np.array([])
+    if trained > 0:
+      floss = h5py.File('%s/%s_loss.h5' % (result_dir, prefix), 'r')
+      self.adv_loss_train = floss['adv_loss'][:]
+      self.adv_loss_nom_train = floss['adv_loss_nom'][:]
+      self.adv_loss_sys_train = floss['adv_loss_sys'][:]
+      self.disc_loss_train = floss['disc_loss'][:]
+      floss.close()
 
     iter_any_bkg = self.get_batch(origin = 'train', noStop = True, signal = False)
     iter_any_sig = self.get_batch(origin = 'train', noStop = True, signal = True)
@@ -482,7 +488,7 @@ class GAN(object):
     iter_test_any = self.get_batch(origin = 'test', noStop = True)
     iter_test_sys = self.get_batch(origin = 'test', syst = True, noStop = True)
 
-    for epoch in range(self.n_iteration):
+    for epoch in range(trained, self.n_iteration):
       if self.no_adv:
         #print("Training with no adv.", self.no_adv, not self.no_adv, self.lambda_decorr)
         x_batch_nom, x_batch_nom_w, y_batch_nom, s_batch_nom = next(iter_nom)
@@ -692,11 +698,11 @@ def main():
                     default='input.h5',
                     help='Name of the file from where to read the input. (default: "input.h5")')
   parser.add_argument('--iterations', dest='iterations', action='store',
-                    default='2001',
-                    help='Number of iterations for training. (default: "2001")')
+                    default='4001',
+                    help='Number of iterations for training. (default: "4001")')
   parser.add_argument('--load-trained', dest='trained', action='store',
-                    default='2000',
-                    help='Number to be appended to end of filename when loading pretrained networks. Ignored during the "train" mode. (default: "2000")')
+                    default='4000',
+                    help='Number to be appended to end of filename when loading pretrained networks. (default: "4000")')
   parser.add_argument('--prefix', dest='prefix', action='store',
                     default='gan',
                     help='Prefix to be added to filenames when producing plots. (default: "gan")')
@@ -749,8 +755,11 @@ def main():
     print("Plotting scatter plots.")
     network.plot_scatter_input(var[0], var[1], "%s/%s_scatter_%d_%d.png" % (args.result_dir, prefix, 0, 1))
 
-    # create network
-    network.create_networks()
+    if int(args.trained) >= 0:
+      network.load("%s/%s_discriminator_%s" % (args.network_dir, prefix, trained), "%s/%s_adv_%s" % (args.network_dir, prefix, trained))
+    else:
+      # create network
+      network.create_networks()
 
     # for comparison: make a plot of the NN output value before any training
     # this will just be random!
@@ -762,7 +771,7 @@ def main():
 
     # train it
     print("Training.")
-    network.train(prefix, args.result_dir, args.network_dir)
+    network.train(prefix, args.result_dir, args.network_dir, int(args.trained))
 
     # plot training evolution
     print("Plotting train metrics.")
