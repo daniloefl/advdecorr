@@ -713,7 +713,7 @@ def main():
                     help='Value of lambda_decorr. (default: 100.0)')
   parser.add_argument('--lr', dest='lr', action='store',
                     default=5e-5,
-                    help='Value of the learning rate. (default: 1e-5)')
+                    help='Value of the learning rate. (default: 5e-5)')
   parser.add_argument('--no-adv', dest='no_adv', action='store_true',
                     default=False,
                     help='De-activate adversarial training?')
